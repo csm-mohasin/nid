@@ -602,29 +602,24 @@
     const cleaned = rawTextValue.replace(/\s+/g, ' ');
 
     // --- NID number ---
-    // Both card formats print this grouped like "779 120 9674" or
-    // "285 001 3505" (3-3-4, sometimes 3-3-7 on longer formats), usually
-    // right after an "NID No." label on the same line.
+    // Don't rely on the "NID No." label being readable — on low-quality
+    // scans it often gets swallowed by chip-icon noise. Instead, scan for
+    // any digit cluster (numbers only, spaces allowed between groups) that
+    // totals 10, 13, or 17 digits once spaces are stripped. This catches
+    // any spacing style the printer/OCR produces — "779 120 9674",
+    // "779120 9674", "7791209674", etc.
     let nid = '';
-    // Tolerant of OCR mangling the label itself (NiD/NlD/N1D etc.)
     const nidLabelMatch = cleaned.match(/N.?D\s*N[oa][.:\s]*([\d\s]{8,22})/i);
     if(nidLabelMatch){
       const digitsOnly = nidLabelMatch[1].replace(/\D/g, '');
-      if(digitsOnly.length >= 10) nid = digitsOnly;
+      if([10,13,17].includes(digitsOnly.length)) nid = digitsOnly;
     }
     if(!nid){
-      // Works even if the label is unreadable — the grouped digit shape is
-      // distinctive enough on its own
-      const grouped = cleaned.match(/\b\d{3}\s\d{3}\s\d{4,7}\b/);
-      if(grouped) nid = grouped[0].replace(/\s/g, '');
-    }
-    if(!nid){
-      const nid17 = cleaned.match(/\b\d{17}\b/);
-      const nid13 = cleaned.match(/\b\d{13}\b/);
-      const nid10 = cleaned.match(/\b\d{10}\b/);
-      if(nid17) nid = nid17[0];
-      else if(nid13) nid = nid13[0];
-      else if(nid10) nid = nid10[0];
+      const digitClusters = cleaned.match(/\d[\d\s]{6,24}\d/g) || [];
+      for(const cluster of digitClusters){
+        const stripped = cluster.replace(/\s/g, '');
+        if([10,13,17].includes(stripped.length)){ nid = stripped; break; }
+      }
     }
 
     // --- Date of birth ---
@@ -641,8 +636,29 @@
 
     nidTag.textContent = nid ? 'পাওয়া গেছে' : 'ম্যানুয়ালি দিন';
     nidTag.className = 'confidence-tag ' + (nid ? 'found' : 'missing');
-    dobTag.textContent = dob ? 'পাওয়া গেছে' : 'ম্যানুয়ালি দিন';
-    dobTag.className = 'confidence-tag ' + (dob ? 'found' : 'missing');
+
+    // Sanity check: OCR sometimes misreads a digit (9→0, etc.), producing
+    // an implausible birth year. Flag it instead of silently trusting it —
+    // we can't know the correct digit, but the user can glance at the card.
+    let dobSuspicious = false;
+    if(dob){
+      const yearMatch = dob.match(/\d{4}$/);
+      if(yearMatch){
+        const year = parseInt(yearMatch[0], 10);
+        const currentYear = new Date().getFullYear();
+        if(year < 1920 || year > currentYear - 17) dobSuspicious = true;
+      }
+    }
+    if(!dob){
+      dobTag.textContent = 'ম্যানুয়ালি দিন';
+      dobTag.className = 'confidence-tag missing';
+    }else if(dobSuspicious){
+      dobTag.textContent = 'যাচাই করুন';
+      dobTag.className = 'confidence-tag missing';
+    }else{
+      dobTag.textContent = 'পাওয়া গেছে';
+      dobTag.className = 'confidence-tag found';
+    }
 
     validateForm();
   }

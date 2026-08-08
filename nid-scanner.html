@@ -83,6 +83,22 @@
   .corner.bl{bottom:-2px; left:-2px; border-bottom:3px solid var(--gold); border-left:3px solid var(--gold); border-radius:0 0 0 14px;}
   .corner.br{bottom:-2px; right:-2px; border-bottom:3px solid var(--gold); border-right:3px solid var(--gold); border-radius:0 0 14px 0;}
 
+  /* Sub-frame highlighting the NID No. / Date of Birth band inside the
+     full card outline — this is the only part that actually gets OCR'd */
+  .focus-band{
+    position:absolute; left:3%; right:3%; bottom:7%; height:23%;
+    border:1.5px dashed var(--disc-red);
+    border-radius:5px;
+    background: rgba(200,53,46,0.12);
+    z-index:13;
+  }
+  .focus-band-label{
+    position:absolute; left:4px; top:-19px;
+    font-size:10px; letter-spacing:0.04em; color:var(--disc-red);
+    font-family:'JetBrains Mono',monospace; white-space:nowrap;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+  }
+
   .scan-line{
     position:absolute; left:6%; right:6%; height:2px;
     background: linear-gradient(90deg, transparent, var(--disc-red) 20%, var(--gold) 50%, var(--disc-red) 80%, transparent);
@@ -284,15 +300,18 @@
   </div>
 
   <div class="frame-overlay">
-    <div class="hint-text hint-top">এনআইডি কার্ডটি ফ্রেমের ভেতর রাখুন</div>
+    <div class="hint-text hint-top">পুরো NID কার্ডটি ফ্রেমের ভেতর রাখুন</div>
     <div class="card-cut" id="cardCut">
       <div class="corner tl"></div>
       <div class="corner tr"></div>
       <div class="corner bl"></div>
       <div class="corner br"></div>
       <div class="scan-line" id="scanLine"></div>
+      <div class="focus-band" id="focusBand">
+        <span class="focus-band-label">শুধু এই অংশ স্ক্যান হবে</span>
+      </div>
     </div>
-    <div class="hint-text hint-bottom" id="hintBottom">সোজা ও ভালো আলোতে ধরুন, তারপর ক্যাপচার করুন</div>
+    <div class="hint-text hint-bottom" id="hintBottom">লাল বক্সে NID নম্বর ও জন্মতারিখ থাকবে এভাবে — বাকিটা শুধু রেফারেন্সের জন্য</div>
   </div>
 
   <div class="bottom-controls">
@@ -348,21 +367,6 @@
           <input class="field-input" id="dobInput" placeholder="DD Mon YYYY, যেমন: 01 Jan 1990">
         </div>
 
-        <div class="field-group">
-          <div class="field-label">নাম (Name)</div>
-          <input class="field-input" id="nameInput" style="font-family:'Noto Sans Bengali','Inter',sans-serif;" placeholder="স্বয়ংক্রিয়ভাবে না পেলে খালি রাখুন">
-        </div>
-
-        <div class="field-group">
-          <div class="field-label">পিতার নাম</div>
-          <input class="field-input" id="fatherInput" style="font-family:'Noto Sans Bengali','Inter',sans-serif;" placeholder="স্বয়ংক্রিয়ভাবে না পেলে খালি রাখুন">
-        </div>
-
-        <div class="field-group">
-          <div class="field-label">মাতার নাম</div>
-          <input class="field-input" id="motherInput" style="font-family:'Noto Sans Bengali','Inter',sans-serif;" placeholder="স্বয়ংক্রিয়ভাবে না পেলে খালি রাখুন">
-        </div>
-
         <button class="raw-toggle" id="rawToggle">রঃ OCR টেক্সট দেখুন</button>
         <div class="raw-text" id="rawText" style="display:none;"></div>
       </div>
@@ -400,9 +404,6 @@
   const fieldsWrap = document.getElementById('fieldsWrap');
   const nidInput = document.getElementById('nidInput');
   const dobInput = document.getElementById('dobInput');
-  const nameInput = document.getElementById('nameInput');
-  const fatherInput = document.getElementById('fatherInput');
-  const motherInput = document.getElementById('motherInput');
   const nidTag = document.getElementById('nidTag');
   const dobTag = document.getElementById('dobTag');
   const rawToggle = document.getElementById('rawToggle');
@@ -410,6 +411,7 @@
   const toast = document.getElementById('toast');
   const captureCanvas = document.getElementById('captureCanvas');
   const processCanvas = document.getElementById('processCanvas');
+  const focusBand = document.getElementById('focusBand');
 
   let currentStream = null;
   let facingMode = 'environment';
@@ -459,8 +461,11 @@
   // Try auto-start (will show gate if blocked/denied)
   startCamera();
 
-  // ---------- Capture: map on-screen card frame to native video pixels ----------
-  function captureFrameRegion(){
+  // ---------- Capture: map an on-screen rect to native video pixels ----------
+  // Generic mapper — used once for the full card outline (for the preview
+  // thumbnail) and again for the smaller focus-band (for OCR), so both stay
+  // in sync automatically if either frame's size/position changes.
+  function mapElementToVideoRegion(el){
     const vw = video.videoWidth, vh = video.videoHeight;
     const cw = video.clientWidth, ch = video.clientHeight;
     if(!vw || !vh) return null;
@@ -470,13 +475,13 @@
     const offX = (dispW - cw) / 2;
     const offY = (dispH - ch) / 2;
 
-    const rect = cardCut.getBoundingClientRect();
+    const rect = el.getBoundingClientRect();
     const videoRect = video.getBoundingClientRect();
-    const frameLeftInContainer = rect.left - videoRect.left;
-    const frameTopInContainer = rect.top - videoRect.top;
+    const leftInContainer = rect.left - videoRect.left;
+    const topInContainer = rect.top - videoRect.top;
 
-    const srcX = (offX + frameLeftInContainer) / scale;
-    const srcY = (offY + frameTopInContainer) / scale;
+    const srcX = (offX + leftInContainer) / scale;
+    const srcY = (offY + topInContainer) / scale;
     const srcW = rect.width / scale;
     const srcH = rect.height / scale;
 
@@ -503,23 +508,25 @@
   }
 
   shutterBtn.addEventListener('click', ()=>{
-    const region = captureFrameRegion();
-    if(!region){ showToast('ক্যামেরা প্রস্তুত হয়নি, একটু পর চেষ্টা করুন'); return; }
+    const cardRegion = mapElementToVideoRegion(cardCut);
+    const bandRegion = mapElementToVideoRegion(focusBand);
+    if(!cardRegion || !bandRegion){ showToast('ক্যামেরা প্রস্তুত হয়নি, একটু পর চেষ্টা করুন'); return; }
 
-    // thumbnail (color, for preview)
-    captureCanvas.width = region.srcW;
-    captureCanvas.height = region.srcH;
+    // Full card, color, for the preview thumbnail / record keeping
+    captureCanvas.width = cardRegion.srcW;
+    captureCanvas.height = cardRegion.srcH;
     const cctx = captureCanvas.getContext('2d');
-    cctx.drawImage(video, region.srcX, region.srcY, region.srcW, region.srcH, 0, 0, region.srcW, region.srcH);
+    cctx.drawImage(video, cardRegion.srcX, cardRegion.srcY, cardRegion.srcW, cardRegion.srcH, 0, 0, cardRegion.srcW, cardRegion.srcH);
     capturedThumb.src = captureCanvas.toDataURL('image/jpeg', 0.92);
 
-    // upscaled + enhanced version for OCR accuracy
-    const scaleUp = 2;
-    processCanvas.width = region.srcW * scaleUp;
-    processCanvas.height = region.srcH * scaleUp;
+    // Only the focus-band region gets OCR'd — smaller image, faster,
+    // and no name/address text nearby to confuse the NID/DOB regex
+    const scaleUp = 2.4;
+    processCanvas.width = bandRegion.srcW * scaleUp;
+    processCanvas.height = bandRegion.srcH * scaleUp;
     const pctx = processCanvas.getContext('2d');
     pctx.imageSmoothingEnabled = true;
-    pctx.drawImage(video, region.srcX, region.srcY, region.srcW, region.srcH, 0, 0, processCanvas.width, processCanvas.height);
+    pctx.drawImage(video, bandRegion.srcX, bandRegion.srcY, bandRegion.srcW, bandRegion.srcH, 0, 0, processCanvas.width, processCanvas.height);
     enhanceForOCR(pctx, processCanvas.width, processCanvas.height);
 
     openReview();
@@ -545,20 +552,30 @@
     rawText.style.display = rawText.style.display === 'none' ? 'block' : 'none';
   });
 
-  // ---------- OCR ----------
+  // ---------- OCR: persistent worker, preloaded on page load ----------
+  // Reusing one worker (instead of Tesseract.recognize, which spins up and
+  // tears down a fresh worker every call) skips re-loading the engine +
+  // language data on every scan — this is most of the "slow scan" time.
+  // Only 'eng' is loaded because "Date of Birth" / "NID No." are always
+  // printed in Latin script on both card formats — no Bengali needed here,
+  // which also cuts load size significantly.
+  let ocrWorker = null;
+  let ocrWorkerReady = initWorker();
+
+  async function initWorker(){
+    ocrWorker = await Tesseract.createWorker('eng', 1, {
+      logger: (m)=>{
+        if(m.status) ocrProgressText.textContent = translateStatus(m.status);
+        if(typeof m.progress === 'number') ocrProgressFill.style.width = Math.round(m.progress*100) + '%';
+      }
+    });
+    return ocrWorker;
+  }
+
   async function runOCR(imageDataUrl){
     try{
-      const result = await Tesseract.recognize(imageDataUrl, 'eng+ben', {
-        logger: (m)=>{
-          if(m.status){
-            ocrProgressText.textContent = translateStatus(m.status);
-          }
-          if(typeof m.progress === 'number'){
-            ocrProgressFill.style.width = Math.round(m.progress*100) + '%';
-          }
-        }
-      });
-      const text = result.data.text || '';
+      const worker = await ocrWorkerReady;
+      const { data: { text } } = await worker.recognize(imageDataUrl);
       rawText.textContent = text.trim() || '(কোনো টেক্সট পাওয়া যায়নি)';
       populateFields(text);
     }catch(err){
@@ -581,41 +598,23 @@
     return map[status] || status;
   }
 
-  function getLines(text){
-    return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
-  }
-
-  // For label-then-value-on-next-line layouts (নাম / Name / পিতা / মাতা each
-  // sit on their own short line, with the actual value on the line below)
-  function extractNextLineValue(lines, labelRegexes, maxLabelLen){
-    for(let i=0;i<lines.length-1;i++){
-      const line = lines[i];
-      if(line.length <= (maxLabelLen || 12) && labelRegexes.some(r=>r.test(line))){
-        const val = lines[i+1];
-        if(val && val.length >= 2) return val;
-      }
-    }
-    return '';
-  }
-
   function populateFields(rawTextValue){
     const cleaned = rawTextValue.replace(/\s+/g, ' ');
-    const lines = getLines(rawTextValue);
 
     // --- NID number ---
-    // Old laminated-card format groups digits as e.g. "779 120 9674" (3-3-4),
-    // usually right after an "NID No." label on the same line.
+    // Both card formats print this grouped like "779 120 9674" or
+    // "285 001 3505" (3-3-4, sometimes 3-3-7 on longer formats), usually
+    // right after an "NID No." label on the same line.
     let nid = '';
-    // Tolerant of OCR mangling the label itself (NiD/NlD/N1D etc.) — only
-    // require the "N.D No" skeleton, not exact letters
+    // Tolerant of OCR mangling the label itself (NiD/NlD/N1D etc.)
     const nidLabelMatch = cleaned.match(/N.?D\s*N[oa][.:\s]*([\d\s]{8,22})/i);
     if(nidLabelMatch){
       const digitsOnly = nidLabelMatch[1].replace(/\D/g, '');
       if(digitsOnly.length >= 10) nid = digitsOnly;
     }
     if(!nid){
-      // Works even if the label is unreadable — grouped 3-3-4 or 3-3-7 digit
-      // patterns are how both the old and smart NID card formats print the number
+      // Works even if the label is unreadable — the grouped digit shape is
+      // distinctive enough on its own
       const grouped = cleaned.match(/\b\d{3}\s\d{3}\s\d{4,7}\b/);
       if(grouped) nid = grouped[0].replace(/\s/g, '');
     }
@@ -629,37 +628,16 @@
     }
 
     // --- Date of birth ---
-    // Usually on the same line as the "Date of Birth" label
     let dob = '';
-    const dobLabelMatch = cleaned.match(/Date of Birth[.:\s]*(\d{1,2}\s?[A-Za-z]{3,9}\s?\d{4})/i);
+    const dobLabelMatch = cleaned.match(/Date of Bir[t]?h[.:\s]*(\d{1,2}\s?[A-Za-z]{3,9}\s?\d{4})/i);
     if(dobLabelMatch) dob = dobLabelMatch[1].replace(/\s+/g,' ').trim();
     if(!dob){
       const dobMatch = cleaned.match(/(\d{1,2}\s?[A-Za-z]{3,9}\s?\d{4})/);
       if(dobMatch) dob = dobMatch[0].replace(/\s+/g,' ').trim();
     }
 
-    // --- Name / Father / Mother ---
-    // These sit as: label line ("নাম" / "Name" / "পিতা" / "মাতা") then the
-    // actual value on the next line.
-    let nameBn = extractNextLineValue(lines, [/^নাম$/], 10);
-    let nameEn = extractNextLineValue(lines, [/^Name$/i], 10);
-    let father = extractNextLineValue(lines, [/^পিতা$/], 10);
-    let mother = extractNextLineValue(lines, [/^মাতা$/], 10);
-
-    // Fallback: "Name" label with value inline on same line
-    if(!nameEn){
-      const nameMatch = rawTextValue.match(/Name[:\s]+([A-Za-z\s.]{3,40})/i);
-      if(nameMatch) nameEn = nameMatch[1].trim();
-    }
-
-    // Prefer Bangla name for the main "নাম (Name)" field, fall back to English
-    const name = nameBn || nameEn || '';
-
     nidInput.value = nid;
     dobInput.value = dob;
-    nameInput.value = name;
-    fatherInput.value = father;
-    motherInput.value = mother;
 
     nidTag.textContent = nid ? 'পাওয়া গেছে' : 'ম্যানুয়ালি দিন';
     nidTag.className = 'confidence-tag ' + (nid ? 'found' : 'missing');
@@ -679,9 +657,6 @@
     const record = {
       nid: nidInput.value.trim(),
       dob: dobInput.value.trim(),
-      name: nameInput.value.trim(),
-      father: fatherInput.value.trim(),
-      mother: motherInput.value.trim(),
       capturedAt: new Date().toISOString()
     };
     // Hand-off point: this is where the record gets passed to the

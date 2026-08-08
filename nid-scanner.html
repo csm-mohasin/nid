@@ -349,8 +349,18 @@
         </div>
 
         <div class="field-group">
-          <div class="field-label">নাম (পাওয়া গেলে)</div>
+          <div class="field-label">নাম (Name)</div>
           <input class="field-input" id="nameInput" style="font-family:'Noto Sans Bengali','Inter',sans-serif;" placeholder="স্বয়ংক্রিয়ভাবে না পেলে খালি রাখুন">
+        </div>
+
+        <div class="field-group">
+          <div class="field-label">পিতার নাম</div>
+          <input class="field-input" id="fatherInput" style="font-family:'Noto Sans Bengali','Inter',sans-serif;" placeholder="স্বয়ংক্রিয়ভাবে না পেলে খালি রাখুন">
+        </div>
+
+        <div class="field-group">
+          <div class="field-label">মাতার নাম</div>
+          <input class="field-input" id="motherInput" style="font-family:'Noto Sans Bengali','Inter',sans-serif;" placeholder="স্বয়ংক্রিয়ভাবে না পেলে খালি রাখুন">
         </div>
 
         <button class="raw-toggle" id="rawToggle">রঃ OCR টেক্সট দেখুন</button>
@@ -391,6 +401,8 @@
   const nidInput = document.getElementById('nidInput');
   const dobInput = document.getElementById('dobInput');
   const nameInput = document.getElementById('nameInput');
+  const fatherInput = document.getElementById('fatherInput');
+  const motherInput = document.getElementById('motherInput');
   const nidTag = document.getElementById('nidTag');
   const dobTag = document.getElementById('dobTag');
   const rawToggle = document.getElementById('rawToggle');
@@ -569,31 +581,85 @@
     return map[status] || status;
   }
 
+  function getLines(text){
+    return text.split('\n').map(l=>l.trim()).filter(l=>l.length>0);
+  }
+
+  // For label-then-value-on-next-line layouts (নাম / Name / পিতা / মাতা each
+  // sit on their own short line, with the actual value on the line below)
+  function extractNextLineValue(lines, labelRegexes, maxLabelLen){
+    for(let i=0;i<lines.length-1;i++){
+      const line = lines[i];
+      if(line.length <= (maxLabelLen || 12) && labelRegexes.some(r=>r.test(line))){
+        const val = lines[i+1];
+        if(val && val.length >= 2) return val;
+      }
+    }
+    return '';
+  }
+
   function populateFields(rawTextValue){
     const cleaned = rawTextValue.replace(/\s+/g, ' ');
+    const lines = getLines(rawTextValue);
 
-    // NID number: look for 17, then 13, then 10 digit sequences
+    // --- NID number ---
+    // Old laminated-card format groups digits as e.g. "779 120 9674" (3-3-4),
+    // usually right after an "NID No." label on the same line.
     let nid = '';
-    const nid17 = cleaned.match(/\b\d{17}\b/);
-    const nid13 = cleaned.match(/\b\d{13}\b/);
-    const nid10 = cleaned.match(/\b\d{10}\b/);
-    if(nid17) nid = nid17[0];
-    else if(nid13) nid = nid13[0];
-    else if(nid10) nid = nid10[0];
+    // Tolerant of OCR mangling the label itself (NiD/NlD/N1D etc.) — only
+    // require the "N.D No" skeleton, not exact letters
+    const nidLabelMatch = cleaned.match(/N.?D\s*N[oa][.:\s]*([\d\s]{8,22})/i);
+    if(nidLabelMatch){
+      const digitsOnly = nidLabelMatch[1].replace(/\D/g, '');
+      if(digitsOnly.length >= 10) nid = digitsOnly;
+    }
+    if(!nid){
+      // Works even if the label is unreadable — grouped 3-3-4 or 3-3-7 digit
+      // patterns are how both the old and smart NID card formats print the number
+      const grouped = cleaned.match(/\b\d{3}\s\d{3}\s\d{4,7}\b/);
+      if(grouped) nid = grouped[0].replace(/\s/g, '');
+    }
+    if(!nid){
+      const nid17 = cleaned.match(/\b\d{17}\b/);
+      const nid13 = cleaned.match(/\b\d{13}\b/);
+      const nid10 = cleaned.match(/\b\d{10}\b/);
+      if(nid17) nid = nid17[0];
+      else if(nid13) nid = nid13[0];
+      else if(nid10) nid = nid10[0];
+    }
 
-    // Date of birth: DD Mon YYYY style, common on NID cards
+    // --- Date of birth ---
+    // Usually on the same line as the "Date of Birth" label
     let dob = '';
-    const dobMatch = cleaned.match(/(\d{1,2}\s?[A-Za-z]{3,9}\s?\d{4})/);
-    if(dobMatch) dob = dobMatch[0].replace(/\s+/g,' ').trim();
+    const dobLabelMatch = cleaned.match(/Date of Birth[.:\s]*(\d{1,2}\s?[A-Za-z]{3,9}\s?\d{4})/i);
+    if(dobLabelMatch) dob = dobLabelMatch[1].replace(/\s+/g,' ').trim();
+    if(!dob){
+      const dobMatch = cleaned.match(/(\d{1,2}\s?[A-Za-z]{3,9}\s?\d{4})/);
+      if(dobMatch) dob = dobMatch[0].replace(/\s+/g,' ').trim();
+    }
 
-    // Name: line after "Name" label, English cards often say "Name:"
-    let name = '';
-    const nameMatch = rawTextValue.match(/Name[:\s]+([A-Za-z\s.]{3,40})/i);
-    if(nameMatch) name = nameMatch[1].trim();
+    // --- Name / Father / Mother ---
+    // These sit as: label line ("নাম" / "Name" / "পিতা" / "মাতা") then the
+    // actual value on the next line.
+    let nameBn = extractNextLineValue(lines, [/^নাম$/], 10);
+    let nameEn = extractNextLineValue(lines, [/^Name$/i], 10);
+    let father = extractNextLineValue(lines, [/^পিতা$/], 10);
+    let mother = extractNextLineValue(lines, [/^মাতা$/], 10);
+
+    // Fallback: "Name" label with value inline on same line
+    if(!nameEn){
+      const nameMatch = rawTextValue.match(/Name[:\s]+([A-Za-z\s.]{3,40})/i);
+      if(nameMatch) nameEn = nameMatch[1].trim();
+    }
+
+    // Prefer Bangla name for the main "নাম (Name)" field, fall back to English
+    const name = nameBn || nameEn || '';
 
     nidInput.value = nid;
     dobInput.value = dob;
     nameInput.value = name;
+    fatherInput.value = father;
+    motherInput.value = mother;
 
     nidTag.textContent = nid ? 'পাওয়া গেছে' : 'ম্যানুয়ালি দিন';
     nidTag.className = 'confidence-tag ' + (nid ? 'found' : 'missing');
@@ -614,6 +680,8 @@
       nid: nidInput.value.trim(),
       dob: dobInput.value.trim(),
       name: nameInput.value.trim(),
+      father: fatherInput.value.trim(),
+      mother: motherInput.value.trim(),
       capturedAt: new Date().toISOString()
     };
     // Hand-off point: this is where the record gets passed to the

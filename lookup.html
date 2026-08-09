@@ -359,7 +359,7 @@ async function startScanCamera(){
   if(scanStream) return;
   try{
     scanStream = await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode:{ideal:'environment'}, width:{ideal:1280}, height:{ideal:960} }, audio:false
+      video:{ facingMode:{ideal:'environment'}, width:{ideal:1280, max:1280}, height:{ideal:960, max:960} }, audio:false
     });
     scanVideo.srcObject = scanStream;
   }catch(err){
@@ -428,8 +428,14 @@ scanShutterBtn.addEventListener('click', async ()=>{
   await new Promise(r => requestAnimationFrame(r));
 
   try{
-    const TARGET_W = 900;
-    const scale = Math.min(3, Math.max(1, TARGET_W/scanVideo.videoWidth));
+    const TARGET_W = 800;
+    // আগে এখানে Math.max(1, ...) থাকায় scale কখনো ১-এর নিচে যেতো না — মানে
+    // ক্যামেরা যদি বড় নেটিভ রেজোলিউশন দিতো (অনেক ফোনই "ideal" hint উপেক্ষা করে
+    // পূর্ণ সেন্সর রেজোলিউশন দেয়), canvas কখনোই ছোট হতো না। কয়েক মেগাপিক্সেলের
+    // ছবিতে getImageData/putImageData চালানো + একইসাথে WASM OCR মডেল মেমোরিতে
+    // থাকা — এই দুইয়ে মিলেই কম RAM-এর ফোনে ট্যাব ক্র্যাশ (Aw, Snap!) করছিলো।
+    // এখন বড় ফ্রেম সবসময় TARGET_W-এর কাছাকাছি ছোট হয়ে যাবে।
+    const scale = Math.max(0.15, Math.min(2, TARGET_W/scanVideo.videoWidth));
     scanCanvas.width = Math.round(scanVideo.videoWidth*scale);
     scanCanvas.height = Math.round(scanVideo.videoHeight*scale);
     const ctx = scanCanvas.getContext('2d');

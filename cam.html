@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto Crop Web Camera</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: #121212;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 10px;
+    }
+
+    h2 {
+      font-size: 18px;
+      margin-bottom: 10px;
+      color: #ffffff;
+    }
+
+    .camera-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+
+    video {
+      width: 100%;
+      display: block;
+    }
+
+    /* Standard Default Frame Border */
+    .crop-frame {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 90%;
+      height: 40%;
+      border: 2px solid #ffffff;
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+      pointer-events: none;
+      transition: width 0.05s ease, height 0.05s ease;
+    }
+
+    .frame-tag {
+      position: absolute;
+      top: -24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #ffffff;
+      color: #000000;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 2px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    .controls {
+      width: 100%;
+      max-width: 480px;
+      margin-top: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .slider-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1e1e1e;
+      padding: 10px 15px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .slider-container input {
+      width: 55%;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 5px;
+    }
+
+    button {
+      padding: 14px;
+      font-size: 15px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .btn-switch {
+      background: #333333;
+      color: #ffffff;
+      flex: 1;
+    }
+
+    .btn-capture {
+      background: #ffffff;
+      color: #000000;
+      flex: 2;
+    }
+
+    .btn-capture:active {
+      opacity: 0.8;
+    }
+
+    canvas {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Auto-Crop Document Camera</h2>
+
+  <div class="camera-wrapper">
+    <video id="webcam" autoplay playsinline></video>
+    <div class="crop-frame" id="crop-frame">
+      <span class="frame-tag">ফ্রেম সাইজ এডজাস্ট করুন</span>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div class="slider-container">
+      <label for="width-slider">Width (প্রস্থ):</label>
+      <input type="range" id="width-slider" min="10" max="100" value="90">
+    </div>
+
+    <div class="slider-container">
+      <label for="height-slider">Height (উচ্চতা):</label>
+      <input type="range" id="height-slider" min="10" max="100" value="40">
+    </div>
+
+    <div class="btn-group">
+      <button class="btn-switch" id="switch-btn">ক্যামেরা চেঞ্জ</button>
+      <button class="btn-capture" id="capture-btn">ছবি তুলুন (Auto Crop)</button>
+    </div>
+  </div>
+
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const video = document.getElementById('webcam');
+    const cropFrame = document.getElementById('crop-frame');
+    const captureBtn = document.getElementById('capture-btn');
+    const switchBtn = document.getElementById('switch-btn');
+    const widthSlider = document.getElementById('width-slider');
+    const heightSlider = document.getElementById('height-slider');
+    const canvas = document.getElementById('canvas');
+
+    let currentFacingMode = 'environment';
+    let currentStream = null;
+
+    async function startCamera() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+      try {
+        currentStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: currentFacingMode,
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          }
+        });
+        video.srcObject = currentStream;
+      } catch (err) {
+        alert('ক্যামেরা চালু করা যাচ্ছে না: ' + err.message);
+      }
+    }
+
+    // Width এবং Height স্লাইডার চেঞ্জ লজিক
+    widthSlider.addEventListener('input', (e) => {
+      cropFrame.style.width = e.target.value + '%';
+    });
+
+    heightSlider.addEventListener('input', (e) => {
+      cropFrame.style.height = e.target.value + '%';
+    });
+
+    switchBtn.addEventListener('click', () => {
+      currentFacingMode = (currentFacingMode === 'environment') ? 'user' : 'environment';
+      startCamera();
+    });
+
+    captureBtn.addEventListener('click', () => {
+      if (!video.videoWidth) return;
+
+      const videoRect = video.getBoundingClientRect();
+      const frameRect = cropFrame.getBoundingClientRect();
+
+      const scaleX = video.videoWidth / videoRect.width;
+      const scaleY = video.videoHeight / videoRect.height;
+
+      const cropX = (frameRect.left - videoRect.left) * scaleX;
+      const cropY = (frameRect.top - videoRect.top) * scaleY;
+      const cropWidth = frameRect.width * scaleX;
+      const cropHeight = frameRect.height * scaleY;
+
+      canvas.width = cropWidth;
+      canvas.height = cropHeight;
+
+      const ctx = canvas.getContext('2d');
+
+      ctx.drawImage(
+        video,
+        cropX, cropY, cropWidth, cropHeight,
+        0, 0, cropWidth, cropHeight
+      );
+
+      const imageData = canvas.toDataURL('image/jpeg', 0.95);
+      const downloadLink = document.createElement('a');
+      const timestamp = new Date().getTime();
+      
+      downloadLink.href = imageData;
+      downloadLink.download = `crop_photo_${timestamp}.jpg`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    });
+
+    startCamera();
+  </script>
+</body>
+</html>

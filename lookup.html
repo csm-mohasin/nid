@@ -342,6 +342,7 @@ const popupCloseBtn = document.getElementById('popupCloseBtn');
 const popupRescanBtn = document.getElementById('popupRescanBtn');
 let scanStream = null;
 let ocrReady = null;
+let scansSinceInit = 0;
 
 function openMatchPopup(voters){
   matchPopupContent.innerHTML = '';
@@ -374,9 +375,39 @@ function stopScanCamera(){
 }
 async function initScanOCR(){
   const { PaddleOcrService } = await import('https://esm.sh/ppu-paddle-ocr/web');
-  const inst = new PaddleOcrService();
+  // WebGPU-এর অটো-ব্যবহার এড়াতে CPU execution provider জোর করে সেট করা
+  // হচ্ছে — ONNX Runtime-এর WebGPU backend প্রতি scan-এ বাফার ছেড়ে না দিয়ে
+  // জমাতে থাকে, যেটা কম RAM-এর মোবাইল ফোনে কয়েক স্ক্যানের মধ্যেই ট্যাব
+  // ক্র্যাশের একটা পরিচিত কারণ।
+  const inst = new PaddleOcrService({
+    session: {
+      executionProviders: ['cpu'],
+      enableCpuMemArena: true,
+      enableMemPattern: true,
+      executionMode: 'sequential'
+    }
+  });
   await inst.initialize();
   return inst;
+}
+
+// PaddleOCR/ONNX Runtime-এর ওয়েব বিল্ডে প্রতি recognize() কলের সাথে কিছু
+// মেমোরি জমতেই থাকে (ভেতরের সেশন-লেভেল বাফার ঠিকমতো রিলিজ হয় না) — কয়েক
+// স্ক্যানের মধ্যেই সেটা কম RAM-এর ফোনে ট্যাব ক্র্যাশ করানোর জন্য যথেষ্ট হয়ে
+// যায়। তাই প্রতি ২টা স্ক্যানের পর পুরনো instance destroy করে নতুন করে লোড
+// করা হচ্ছে — মডেল ফাইল ব্রাউজারে cache থাকায় এই re-init দ্রুতই হয়।
+const SCANS_BEFORE_RECYCLE = 2;
+async function getOcrInstance(){
+  if(scansSinceInit >= SCANS_BEFORE_RECYCLE){
+    try{
+      const old = await ocrReady;
+      if(old && typeof old.destroy === 'function') await old.destroy();
+    }catch(_){ /* ignore cleanup errors */ }
+    ocrReady = initScanOCR();
+    scansSinceInit = 0;
+  }
+  scansSinceInit++;
+  return ocrReady;
 }
 
 // স্ক্রিনে দেখানো লাল "focus-band" বক্সটার অবস্থান/সাইজ ভিডিও-এলিমেন্টের
@@ -477,9 +508,13 @@ async function captureAndRunOCR(){
     );
     enhanceForOCR(ctx, scanCanvas.width, scanCanvas.height);
 
-    const ocr = await ocrReady;
+    const ocr = await getOcrInstance();
     const result = await ocr.recognize(scanCanvas);
     const text = bnToEnDigits((result && result.text) || '').replace(/\s+/g,' ');
+
+    // canvas-এর pixel buffer যত দ্রুত সম্ভব ছেড়ে দেওয়ার জন্য সাইজ শূন্যে
+    // নামিয়ে দেওয়া হচ্ছে, যাতে পরের scan-এর আগে আগেরটার মেমোরি জমে না থাকে
+    scanCanvas.width = 0; scanCanvas.height = 0;
 
     const nid = parseNidFromText(text);
     const dobText = parseDobFromText(text);

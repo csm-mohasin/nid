@@ -135,8 +135,8 @@
   <div class="tab-panel" id="nidTab">
     <div class="cam-wrap">
       <video id="scanVideo" autoplay playsinline muted></video>
-      <div class="card-cut"></div>
-      <div class="focus-band"></div>
+      <div class="card-cut" id="cardCut"></div>
+      <div class="focus-band" id="focusBand"></div>
     </div>
     <div class="cam-controls">
       <button class="shutter" id="scanShutterBtn"><div class="shutter-inner"></div></button>
@@ -334,6 +334,8 @@ const scanVideo = document.getElementById('scanVideo');
 const scanShutterBtn = document.getElementById('scanShutterBtn');
 const scanCanvas = document.getElementById('scanCanvas');
 const scanStatus = document.getElementById('scanStatus');
+const cardCut = document.getElementById('cardCut');
+const focusBand = document.getElementById('focusBand');
 const matchPopupOverlay = document.getElementById('matchPopupOverlay');
 const matchPopupContent = document.getElementById('matchPopupContent');
 const popupCloseBtn = document.getElementById('popupCloseBtn');
@@ -352,7 +354,7 @@ function closeMatchPopup(){
 popupCloseBtn.addEventListener('click', closeMatchPopup);
 popupRescanBtn.addEventListener('click', ()=>{
   closeMatchPopup();
-  scanStatus.textContent = 'NID কার্ডের NID নম্বর ও জন্মতারিখ — দুটোই ফ্রেমের মধ্যে স্পষ্ট রেখে ক্যাপচার করুন';
+  scanStatus.textContent = 'NID কার্ডের NID নম্বর ও জন্মতারিখ — দুটোই লাল বক্সের মধ্যে স্পষ্ট রেখে ক্যাপচার করুন';
 });
 
 async function startScanCamera(){
@@ -377,6 +379,34 @@ async function initScanOCR(){
   return inst;
 }
 
+// স্ক্রিনে দেখানো লাল "focus-band" বক্সটার অবস্থান/সাইজ ভিডিও-এলিমেন্টের
+// নেটিভ পিক্সেল কোঅর্ডিনেটে ম্যাপ করে — object-fit:cover থাকায় ভিডিওর
+// আসল রেজোলিউশন আর যা স্ক্রিনে দেখা যাচ্ছে তার মধ্যে স্কেল/অফসেট থাকে,
+// সেটা এখানে হিসাব করা হচ্ছে। ফলাফল: শুধু লাল বক্সের ছোট অংশটাই crop
+// হয়ে OCR-এ যাবে, পুরো ফ্রেম না — এতে processing অনেক ছোট ও নিরাপদ থাকে।
+function mapElementToVideoRegion(el){
+  const vw = scanVideo.videoWidth, vh = scanVideo.videoHeight;
+  const cw = scanVideo.clientWidth, ch = scanVideo.clientHeight;
+  if(!vw || !vh) return null;
+
+  const scale = Math.max(cw / vw, ch / vh);
+  const dispW = vw * scale, dispH = vh * scale;
+  const offX = (dispW - cw) / 2;
+  const offY = (dispH - ch) / 2;
+
+  const rect = el.getBoundingClientRect();
+  const videoRect = scanVideo.getBoundingClientRect();
+  const leftInContainer = rect.left - videoRect.left;
+  const topInContainer = rect.top - videoRect.top;
+
+  const srcX = (offX + leftInContainer) / scale;
+  const srcY = (offY + topInContainer) / scale;
+  const srcW = rect.width / scale;
+  const srcH = rect.height / scale;
+
+  return { srcX, srcY, srcW, srcH };
+}
+
 function enhanceForOCR(ctx,w,h){
   const imgData = ctx.getImageData(0,0,w,h); const d = imgData.data;
   let min=255,max=0;
@@ -398,9 +428,6 @@ function parseDobFromText(cleaned){
 }
 function parseNidFromText(cleaned){
   const clusters = cleaned.match(/\d[\d\s]{6,24}\d/g) || [];
-  // BD ভোটার/NID নম্বরের দৈর্ঘ্য এলাকাভেদে ১০-১৭ ডিজিট হতে পারে (এই লিস্টেই
-  // ১২ ডিজিট দেখা যাচ্ছে), তাই নির্দিষ্ট কয়েকটা মান না মিলিয়ে একটা রেঞ্জ ব্যবহার
-  // করা হচ্ছে — এতে সবচেয়ে লম্বা ক্লাস্টারটাই সবচেয়ে সম্ভাব্য উত্তর হিসেবে নেওয়া হয়।
   let best = '';
   for(const c of clusters){
     const s = c.replace(/\s/g,'');
@@ -410,36 +437,44 @@ function parseNidFromText(cleaned){
 }
 
 let isScanning = false;
-scanShutterBtn.addEventListener('click', async ()=>{
+scanShutterBtn.addEventListener('click', ()=>{
   if(isScanning || !scanVideo.videoWidth) return;
   isScanning = true;
   scanShutterBtn.style.opacity='0.5'; scanShutterBtn.style.pointerEvents='none';
-  scanStatus.innerHTML = '<span class="spinner"></span> লোড হচ্ছে...';
   closeMatchPopup();
 
-  // এই দুইটা rAF-এর মাধ্যমে ব্রাউজারকে আগে উপরের স্পিনার আঁকার (paint) সুযোগ
-  // দেওয়া হচ্ছে — নাহলে নিচের ভারী synchronous canvas/OCR কাজ সাথে সাথে শুরু
-  // হয়ে মূল থ্রেড ব্লক করে ফেলতো, ফলে ফোন "হ্যাং" করেছে মনে হতো কারণ স্পিনারটা
-  // আসলে স্ক্রিনে আঁকাই হতো না যতক্ষণ না পুরো কাজ শেষ হয়।
-  await new Promise(r => requestAnimationFrame(r));
-  await new Promise(r => requestAnimationFrame(r));
+  // লোডিং UI অবিলম্বে দেখানো হচ্ছে, ভারী কাজ শুরুর আগেই — setTimeout ব্যবহার
+  // করা হচ্ছে (শুধু requestAnimationFrame না) কারণ কম শক্তিশালী ফোনের
+  // WebView-তে এটা স্পিনার আসলেই স্ক্রিনে আঁকা নিশ্চিত করার জন্য বেশি নির্ভরযোগ্য।
+  scanStatus.innerHTML = '<span class="spinner"></span> লোড হচ্ছে...';
+  setTimeout(captureAndRunOCR, 60);
+});
 
-  scanStatus.innerHTML = '<span class="spinner"></span> স্ক্যান হচ্ছে...';
-  await new Promise(r => requestAnimationFrame(r));
-
+async function captureAndRunOCR(){
   try{
-    const TARGET_W = 800;
-    // আগে এখানে Math.max(1, ...) থাকায় scale কখনো ১-এর নিচে যেতো না — মানে
-    // ক্যামেরা যদি বড় নেটিভ রেজোলিউশন দিতো (অনেক ফোনই "ideal" hint উপেক্ষা করে
-    // পূর্ণ সেন্সর রেজোলিউশন দেয়), canvas কখনোই ছোট হতো না। কয়েক মেগাপিক্সেলের
-    // ছবিতে getImageData/putImageData চালানো + একইসাথে WASM OCR মডেল মেমোরিতে
-    // থাকা — এই দুইয়ে মিলেই কম RAM-এর ফোনে ট্যাব ক্র্যাশ (Aw, Snap!) করছিলো।
-    // এখন বড় ফ্রেম সবসময় TARGET_W-এর কাছাকাছি ছোট হয়ে যাবে।
-    const scale = Math.max(0.15, Math.min(2, TARGET_W/scanVideo.videoWidth));
-    scanCanvas.width = Math.round(scanVideo.videoWidth*scale);
-    scanCanvas.height = Math.round(scanVideo.videoHeight*scale);
+    const bandRegion = mapElementToVideoRegion(focusBand);
+    if(!bandRegion || bandRegion.srcW <= 0 || bandRegion.srcH <= 0){
+      scanStatus.textContent = 'ক্যামেরা প্রস্তুত হয়নি, একটু পর আবার চেষ্টা করো';
+      return;
+    }
+
+    scanStatus.innerHTML = '<span class="spinner"></span> স্ক্যান হচ্ছে...';
+    await new Promise(r => requestAnimationFrame(r));
+
+    // শুধু লাল বক্সের (focus-band) অংশটুকুই crop করে ছোট canvas-এ আঁকা হচ্ছে —
+    // পুরো ফ্রেম না। এতে canvas সবসময় ছোট থাকে, ক্যামেরার নেটিভ রেজোলিউশন
+    // যত বড়ই হোক না কেন — এইটাই আগের ক্র্যাশের আসল সমাধান।
+    const TARGET_W = 700;
+    const scale = Math.max(0.5, Math.min(3, TARGET_W / bandRegion.srcW));
+    scanCanvas.width = Math.round(bandRegion.srcW * scale);
+    scanCanvas.height = Math.round(bandRegion.srcH * scale);
     const ctx = scanCanvas.getContext('2d');
-    ctx.drawImage(scanVideo, 0,0, scanCanvas.width, scanCanvas.height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(
+      scanVideo,
+      bandRegion.srcX, bandRegion.srcY, bandRegion.srcW, bandRegion.srcH,
+      0, 0, scanCanvas.width, scanCanvas.height
+    );
     enhanceForOCR(ctx, scanCanvas.width, scanCanvas.height);
 
     const ocr = await ocrReady;
@@ -462,7 +497,7 @@ scanShutterBtn.addEventListener('click', async ()=>{
       openMatchPopup(matches.slice(0,10));
     }else{
       // কোনো "ম্যানুয়াল এন্ট্রি" পেজে পাঠানো হয় না — শুধু আবার স্ক্যান করতে বলা হয়
-      scanStatus.textContent = 'মিল পাওয়া যায়নি — ক্যামেরা স্থির রেখে, ভালো আলোয়, NID নম্বর ও জন্মতারিখ দুটোই স্পষ্ট রেখে আবার ক্যাপচার করো';
+      scanStatus.textContent = 'মিল পাওয়া যায়নি — লাল বক্সে NID নম্বর ও জন্মতারিখ দুটোই স্পষ্ট রেখে, স্থির হাতে, ভালো আলোয় আবার ক্যাপচার করো';
     }
   }catch(err){
     console.error(err);
@@ -471,7 +506,7 @@ scanShutterBtn.addEventListener('click', async ()=>{
     isScanning = false;
     scanShutterBtn.style.opacity='1'; scanShutterBtn.style.pointerEvents='auto';
   }
-});
+}
 
 window.addEventListener('beforeunload', stopScanCamera);
 </script>

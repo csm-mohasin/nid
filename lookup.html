@@ -364,7 +364,7 @@ async function startScanCamera(){
   if(scanStream) return;
   try{
     scanStream = await navigator.mediaDevices.getUserMedia({
-      video:{ facingMode:{ideal:'environment'}, width:{ideal:1280, max:1280}, height:{ideal:960, max:960} }, audio:false
+      video:{ facingMode:{ideal:'environment'}, width:{ideal:960, max:960}, height:{ideal:720, max:720} }, audio:false
     });
     scanVideo.srcObject = scanStream;
   }catch(err){
@@ -384,7 +384,7 @@ function stopScanCamera(){
 // চালানো হচ্ছে, যাতে দরকার হলে worker.terminate() কল করে তার পুরো WASM
 // heap সহ সব মেমোরি একেবারে OS-কে ফেরত দেওয়া যায় — main thread এ
 // destroy() কল করলে যেটা কখনো নিশ্চিতভাবে হয় না।
-const SCANS_BEFORE_RECYCLE = 3;
+const SCANS_BEFORE_RECYCLE = 1;
 
 function createOcrWorker(){
   const worker = new Worker('./ocr-worker.js', { type:'module' });

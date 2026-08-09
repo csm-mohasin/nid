@@ -125,6 +125,33 @@
       opacity: 0.8;
     }
 
+    .btn-reset {
+      background: #444444;
+      color: #ffffff;
+      flex: 1;
+    }
+
+    .counter-info {
+      text-align: center;
+      font-size: 13px;
+      color: #aaaaaa;
+      margin-top: 4px;
+    }
+
+    .case-input {
+      width: 100%;
+      padding: 12px;
+      font-size: 14px;
+      border-radius: 8px;
+      border: 1px solid #444444;
+      background: #1e1e1e;
+      color: #ffffff;
+    }
+
+    .case-input::placeholder {
+      color: #888888;
+    }
+
     canvas {
       display: none;
     }
@@ -142,6 +169,8 @@
   </div>
 
   <div class="controls">
+    <input type="text" id="case-name" class="case-input" placeholder="Case নাম / নাম্বার লিখুন (যেমন: Case-1)" value="Case-1">
+
     <div class="slider-container">
       <label for="width-slider">Width (প্রস্থ):</label>
       <input type="range" id="width-slider" min="10" max="100" value="90">
@@ -156,6 +185,12 @@
       <button class="btn-switch" id="switch-btn">ক্যামেরা চেঞ্জ</button>
       <button class="btn-capture" id="capture-btn">ছবি তুলুন (Auto Crop)</button>
     </div>
+
+    <div class="btn-group">
+      <button class="btn-reset" id="reset-btn">নাম্বার রিসেট (১ থেকে শুরু)</button>
+    </div>
+
+    <div class="counter-info" id="counter-info">পরবর্তী ছবি: Case-1/1.jpg</div>
   </div>
 
   <canvas id="canvas"></canvas>
@@ -165,12 +200,34 @@
     const cropFrame = document.getElementById('crop-frame');
     const captureBtn = document.getElementById('capture-btn');
     const switchBtn = document.getElementById('switch-btn');
+    const resetBtn = document.getElementById('reset-btn');
     const widthSlider = document.getElementById('width-slider');
     const heightSlider = document.getElementById('height-slider');
     const canvas = document.getElementById('canvas');
+    const counterInfo = document.getElementById('counter-info');
+    const caseNameInput = document.getElementById('case-name');
 
     let currentFacingMode = 'environment';
     let currentStream = null;
+
+    // ক্রমিক নাম্বারিং এর জন্য কাউন্টার (1 থেকে শুরু হবে)
+    let photoCounter = 1;
+
+    // Case নাম থেকে ফোল্ডারে ব্যবহারযোগ্য নিরাপদ নাম বানানো হচ্ছে
+    function getSafeCaseName() {
+      const raw = caseNameInput.value.trim() || 'Case-1';
+      return raw.replace(/[\\/:*?"<>|]/g, '-');
+    }
+
+    function updateCounterInfo() {
+      counterInfo.textContent = 'পরবর্তী ছবি: ' + getSafeCaseName() + '/' + photoCounter + '.jpg';
+    }
+
+    // Case নাম পরিবর্তন করলে নাম্বার নতুন করে ১ থেকে শুরু হবে
+    caseNameInput.addEventListener('input', () => {
+      photoCounter = 1;
+      updateCounterInfo();
+    });
 
     async function startCamera() {
       if (currentStream) {
@@ -204,6 +261,13 @@
       startCamera();
     });
 
+    resetBtn.addEventListener('click', () => {
+      photoCounter = 1;
+      updateCounterInfo();
+    });
+
+    updateCounterInfo();
+
     captureBtn.addEventListener('click', () => {
       if (!video.videoWidth) return;
 
@@ -231,13 +295,19 @@
 
       const imageData = canvas.toDataURL('image/jpeg', 0.95);
       const downloadLink = document.createElement('a');
-      const timestamp = new Date().getTime();
-      
+
+      // ছবি এখন "CaseName/1.jpg", "CaseName/2.jpg" এভাবে একটা সাব-ফোল্ডারে জমা হবে
+      // (Downloads ফোল্ডারের ভিতরে Case নামের একটা ফোল্ডার তৈরি হবে - Chrome/Android এ কাজ করে)
+      const caseName = getSafeCaseName();
       downloadLink.href = imageData;
-      downloadLink.download = `crop_photo_${timestamp}.jpg`;
+      downloadLink.download = caseName + '/' + photoCounter + '.jpg';
       document.body.appendChild(downloadLink);
       downloadLink.click();
       document.body.removeChild(downloadLink);
+
+      // পরবর্তী ছবির জন্য কাউন্টার বাড়ানো হলো
+      photoCounter++;
+      updateCounterInfo();
     });
 
     startCamera();

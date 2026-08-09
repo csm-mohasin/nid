@@ -4,14 +4,13 @@
 // Project settings → General → Your apps → SDK setup and config)
 // ================================================================
 export const FIREBASE_CONFIG = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDfYa-3Au4hJVKq8oKftaj0YEg1d7yqbzM",
+  authDomain: "niddd-c03b8.firebaseapp.com",
+  projectId: "niddd-c03b8",
+  storageBucket: "niddd-c03b8.firebasestorage.app",
+  messagingSenderId: "716407466574",
+  appId: "1:716407466574:web:61c60e0fd9bd6221c1711f"
 };
-
 // Firestore-এ ভোটারদের কালেকশনের নাম — দুই ফাইলেই এটাই ব্যবহার হবে
 export const VOTERS_COLLECTION = "voters";
 

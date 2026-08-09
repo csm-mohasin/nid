@@ -155,6 +155,17 @@
     canvas {
       display: none;
     }
+
+    .dev-credit {
+      margin-top: 18px;
+      text-align: center;
+      font-size: 11px;
+      color: rgba(255,255,255,0.35);
+    }
+    .dev-credit a {
+      color: rgba(201,162,75,0.7);
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
@@ -194,6 +205,8 @@
   </div>
 
   <canvas id="canvas"></canvas>
+
+  <div class="dev-credit">Developer: <a href="https://mohasin.bro.bd" target="_blank" rel="noopener">CSM Mohasin Alam</a></div>
 
   <script>
     const video = document.getElementById('webcam');

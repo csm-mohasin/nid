@@ -97,6 +97,18 @@
   .dev-credit{position:absolute; left:0; right:0; bottom:4px; text-align:center; font-size:10px;
     color:rgba(244,240,230,0.35); z-index:5; pointer-events:none;}
   .dev-credit a{color:rgba(201,162,75,0.6); pointer-events:auto; text-decoration:none;}
+
+  /* ---------- Dashboard tab ---------- */
+  .dash-edit-btn{width:100%; margin-top:10px; padding:9px; border-radius:8px; background:transparent;
+    border:1px solid var(--gold); color:var(--gold); font-size:12.5px; font-weight:600; cursor:pointer;}
+
+  /* ---------- Edit popup ---------- */
+  .edit-fg{margin-bottom:10px;}
+  .edit-fg label{display:block; font-size:10.5px; letter-spacing:0.05em; text-transform:uppercase;
+    color:var(--paper-dim); margin-bottom:4px; font-family:'JetBrains Mono',monospace;}
+  .edit-fg input, .edit-fg select{width:100%; padding:10px 12px; border-radius:8px;
+    background:rgba(244,240,230,0.06); border:1px solid var(--line); color:var(--paper); font-size:14px;}
+  .edit-fg select{font-family:'Noto Sans Bengali',sans-serif;}
 </style>
 </head>
 <body>
@@ -121,15 +133,22 @@
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="nameTab">নাম দিয়ে</button>
+    <button class="tab-btn" data-tab="dashboardTab">ড্যাশবোর্ড</button>
     <button class="tab-btn" data-tab="nidTab">NID স্ক্যান</button>
     <button class="tab-btn" data-tab="yearTab">জন্ম সাল দিয়ে</button>
     <button class="tab-btn" data-tab="serialTab">ক্রমিক নং</button>
+    <button class="tab-btn" data-tab="missingTab">মিসিং চেক</button>
   </div>
 
   <div class="tab-panel active" id="nameTab">
     <div class="status-line" id="loadStatus">ডেটা লোড হচ্ছে...</div>
     <input class="search-input" id="nameSearchInput" placeholder="নাম লিখুন...">
     <div id="nameResults"></div>
+  </div>
+
+  <div class="tab-panel" id="dashboardTab">
+    <div class="status-line" id="dashboardSummary">ডেটা লোড হচ্ছে...</div>
+    <div id="dashboardResults"></div>
   </div>
 
   <div class="tab-panel" id="nidTab">
@@ -155,6 +174,13 @@
     <div id="serialResults"></div>
   </div>
 
+  <div class="tab-panel" id="missingTab">
+    <div class="status-line" id="missingSummary">শুরু ক্রমিক নং দিয়ে চেক করুন</div>
+    <input class="search-input" id="missingStartInput" placeholder="শুরু ক্রমিক নং (ডিফল্ট 1)" inputmode="numeric" value="1">
+    <button class="primary-btn" id="missingCheckBtn" style="margin-bottom:14px;">মিসিং সিরিয়াল খুঁজুন</button>
+    <div id="missingResults"></div>
+  </div>
+
   <div class="dev-credit">Developer: <a href="https://mohasin.bro.bd" target="_blank" rel="noopener">CSM Mohasin Alam</a></div>
 
 </div>
@@ -170,11 +196,23 @@
   </div>
 </div>
 
+<div class="popup-overlay" id="editPopupOverlay">
+  <div class="popup-card">
+    <div class="popup-head">
+      <h3>ভোটারের তথ্য এডিট করো</h3>
+      <button class="popup-close" id="editPopupCloseBtn">×</button>
+    </div>
+    <div id="editFormFields"></div>
+    <div class="error-text" id="editError"></div>
+    <button class="primary-btn" id="editSaveBtn" style="margin-top:8px;">সংরক্ষণ করো</button>
+  </div>
+</div>
+
 <canvas id="scanCanvas" style="display:none;"></canvas>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { FIREBASE_CONFIG, VOTERS_COLLECTION, bnToEnDigits, normalizeDob, dobYear, displayDob } from "./shared.js";
 
@@ -224,6 +262,7 @@ async function loadAllVoters(){
     voterDataLoaded = true;
     statusEl.textContent = `মোট ${allVoters.length} জন ভোটারের তথ্য লোড হয়েছে`;
     populateYearSelect();
+    renderDashboard();
   }catch(err){
     statusEl.textContent = 'ডেটা লোড ব্যর্থ: ' + err.message;
   }
@@ -237,6 +276,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     btn.classList.add('active');
     document.getElementById(btn.dataset.tab).classList.add('active');
     if(btn.dataset.tab === 'nidTab') startScanCamera(); else stopScanCamera();
+    if(btn.dataset.tab === 'dashboardTab') renderDashboard();
   });
 });
 
@@ -297,6 +337,204 @@ function runSerialSearch(){
     return;
   }
   matches.slice(0,50).forEach(v => serialResults.appendChild(renderResultCard(v,false)));
+}
+
+// ---------- Dashboard (1 → last serial, সাজানো, edit) ----------
+const dashboardSummary = document.getElementById('dashboardSummary');
+const dashboardResults = document.getElementById('dashboardResults');
+const editPopupOverlay = document.getElementById('editPopupOverlay');
+const editPopupCloseBtn = document.getElementById('editPopupCloseBtn');
+const editFormFields = document.getElementById('editFormFields');
+const editError = document.getElementById('editError');
+const editSaveBtn = document.getElementById('editSaveBtn');
+let editTargetOriginalNid = '';
+
+function serialNum(v){
+  const raw = bnToEnDigits(v.serial || '').replace(/\D/g,'');
+  return raw ? parseInt(raw,10) : NaN;
+}
+
+function renderDashboard(){
+  if(!voterDataLoaded){
+    dashboardSummary.textContent = 'ডেটা লোড হচ্ছে...';
+    dashboardResults.innerHTML = '';
+    return;
+  }
+  // ক্রমিক নং অনুযায়ী (1 → last) সাজানো হচ্ছে; যাদের সিরিয়াল নেই তারা শেষে
+  const sorted = [...allVoters].sort((a,b)=>{
+    const sa = serialNum(a), sb = serialNum(b);
+    if(isNaN(sa) && isNaN(sb)) return 0;
+    if(isNaN(sa)) return 1;
+    if(isNaN(sb)) return -1;
+    return sa - sb;
+  });
+  const nums = sorted.map(serialNum).filter(n=>!isNaN(n));
+  const lastSerial = nums.length ? Math.max(...nums) : 0;
+
+  dashboardSummary.textContent = `মোট আপলোড হয়েছে: ${allVoters.length} জন · সর্বশেষ ক্রমিক নং: ${lastSerial}`;
+
+  dashboardResults.innerHTML = '';
+  if(sorted.length === 0){
+    dashboardResults.innerHTML = '<div class="empty-hint">এখনো কোনো ডেটা আপলোড হয়নি</div>';
+    return;
+  }
+  sorted.forEach(v=>{
+    const card = renderResultCard(v, false);
+    const editBtn = document.createElement('button');
+    editBtn.className = 'dash-edit-btn';
+    editBtn.textContent = 'এডিট করো';
+    editBtn.addEventListener('click', ()=> openEditPopup(v));
+    card.appendChild(editBtn);
+    dashboardResults.appendChild(card);
+  });
+}
+
+function openEditPopup(v){
+  editTargetOriginalNid = v.nid_number || '';
+  editError.textContent = '';
+  editFormFields.innerHTML = `
+    <div class="edit-fg"><label>ক্রমিক নং</label><input id="editSerial" value="${escapeHtml(v.serial||'')}"></div>
+    <div class="edit-fg"><label>নাম</label><input id="editName" value="${escapeHtml(v.name||'')}"></div>
+    <div class="edit-fg"><label>NID / ভোটার নং</label><input id="editNid" inputmode="numeric" value="${escapeHtml(v.nid_number||'')}"></div>
+    <div class="edit-fg"><label>পিতা</label><input id="editFather" value="${escapeHtml(v.father_name||'')}"></div>
+    <div class="edit-fg"><label>মাতা</label><input id="editMother" value="${escapeHtml(v.mother_name||'')}"></div>
+    <div class="edit-fg"><label>পেশা</label><input id="editOccupation" value="${escapeHtml(v.occupation||'')}"></div>
+    <div class="edit-fg"><label>জন্ম তারিখ (DD/MM/YYYY)</label><input id="editDob" value="${escapeHtml(v.dob ? displayDob(v.dob) : '')}"></div>
+    <div class="edit-fg"><label>ঠিকানা</label><input id="editAddress" value="${escapeHtml(v.address||'')}"></div>
+    <div class="edit-fg"><label>লিঙ্গ</label>
+      <select id="editSex">
+        <option value="male" ${v.sex==='male'?'selected':''}>পুরুষ</option>
+        <option value="female" ${v.sex==='female'?'selected':''}>নারী</option>
+      </select>
+    </div>
+  `;
+  editPopupOverlay.classList.add('open');
+}
+editPopupCloseBtn.addEventListener('click', ()=> editPopupOverlay.classList.remove('open'));
+
+editSaveBtn.addEventListener('click', async ()=>{
+  const nidVal = document.getElementById('editNid').value.trim().replace(/\D/g,'');
+  const nameVal = document.getElementById('editName').value.trim();
+  if(!nameVal || nidVal.length < 8){
+    editError.textContent = 'নাম ও অন্তত ৮ সংখ্যার NID নম্বর আবশ্যক';
+    return;
+  }
+  if(!editTargetOriginalNid){
+    editError.textContent = 'মূল রেকর্ড খুঁজে পাওয়া যায়নি';
+    return;
+  }
+  editSaveBtn.disabled = true; editSaveBtn.textContent = 'সংরক্ষণ হচ্ছে...';
+  try{
+    const dobRaw = document.getElementById('editDob').value.trim();
+    const updated = {
+      serial: document.getElementById('editSerial').value.trim(),
+      name: nameVal,
+      nid_number: nidVal,
+      father_name: document.getElementById('editFather').value.trim(),
+      mother_name: document.getElementById('editMother').value.trim(),
+      occupation: document.getElementById('editOccupation').value.trim(),
+      dob: normalizeDob(dobRaw) || dobRaw,
+      address: document.getElementById('editAddress').value.trim(),
+      sex: document.getElementById('editSex').value,
+      updated_at: new Date().toISOString()
+    };
+
+    // admin.html-এর মতোই ডকুমেন্ট ID = NID number, তাই একই ID-তে লিখলে
+    // ওভাররাইট হয়। NID number নিজেই বদলালে পুরনো ID-র ডকুমেন্ট মুছে
+    // নতুন ID-তে লেখা হচ্ছে, যাতে এতিম/ডুপ্লিকেট ডকুমেন্ট না থাকে।
+    await setDoc(doc(db, VOTERS_COLLECTION, nidVal), updated, { merge:true });
+    if(nidVal !== editTargetOriginalNid){
+      await deleteDoc(doc(db, VOTERS_COLLECTION, editTargetOriginalNid));
+    }
+
+    const idx = allVoters.findIndex(x => x.nid_number === editTargetOriginalNid);
+    if(idx >= 0) allVoters[idx] = updated; else allVoters.push(updated);
+
+    editPopupOverlay.classList.remove('open');
+    renderDashboard();
+    populateYearSelect();
+  }catch(err){
+    console.error(err);
+    editError.textContent = 'সংরক্ষণ ব্যর্থ: ' + err.message;
+  }finally{
+    editSaveBtn.disabled = false; editSaveBtn.textContent = 'সংরক্ষণ করো';
+  }
+});
+
+// ---------- Missing serial check ----------
+const missingStartInput = document.getElementById('missingStartInput');
+const missingCheckBtn = document.getElementById('missingCheckBtn');
+const missingSummary = document.getElementById('missingSummary');
+const missingResults = document.getElementById('missingResults');
+missingCheckBtn.addEventListener('click', runMissingSerialCheck);
+
+function runMissingSerialCheck(){
+  missingResults.innerHTML = '';
+  if(!voterDataLoaded){
+    missingSummary.textContent = 'ডেটা এখনো লোড হয়নি, একটু অপেক্ষা করে আবার চেষ্টা করো';
+    return;
+  }
+
+  // সব ভোটারের serial সংগ্রহ করে সংখ্যায় রূপান্তর (বাংলা->ইংরেজি, শুধু ডিজিট রেখে)
+  const serialSet = new Set();
+  let maxDigits = 1;
+  allVoters.forEach(v=>{
+    const raw = bnToEnDigits(v.serial || '').replace(/\D/g,'');
+    if(raw){
+      serialSet.add(parseInt(raw,10));
+      maxDigits = Math.max(maxDigits, raw.length);
+    }
+  });
+
+  if(serialSet.size === 0){
+    missingSummary.textContent = 'কোনো ভোটারের সিরিয়াল নম্বর পাওয়া যায়নি';
+    return;
+  }
+
+  const startRaw = bnToEnDigits(missingStartInput.value.trim()).replace(/\D/g,'');
+  const start = startRaw ? parseInt(startRaw,10) : 1;
+  const lastSerial = Math.max(...serialSet);
+
+  if(start > lastSerial){
+    missingSummary.textContent = `শুরু নং (${start}) সর্বশেষ সিরিয়ালের (${lastSerial}) চেয়ে বড়, চেক করা যাচ্ছে না`;
+    return;
+  }
+
+  const missing = [];
+  for(let i = start; i <= lastSerial; i++){
+    if(!serialSet.has(i)) missing.push(i);
+  }
+  const totalRange = lastSerial - start + 1;
+
+  missingSummary.textContent =
+    `সর্বশেষ ক্রমিক নং: ${lastSerial} · থাকার কথা: ${totalRange} · আপলোড হয়েছে: ${totalRange - missing.length} · মিসিং: ${missing.length}`;
+
+  if(missing.length === 0){
+    missingResults.innerHTML = '<div class="empty-hint">কোনো সিরিয়াল মিসিং নেই — সবগুলো আপলোড হয়ে গেছে ✅</div>';
+    return;
+  }
+
+  // মিসিং নম্বরগুলোকে কনসিকিউটিভ রেঞ্জে গ্রুপ করা হচ্ছে (যেমন 12–15), যাতে
+  // অনেক নম্বর একসাথে মিসিং থাকলেও পড়তে সহজ হয়
+  const ranges = [];
+  let rangeStart = missing[0], prev = missing[0];
+  for(let i=1;i<=missing.length;i++){
+    const cur = missing[i];
+    if(cur === prev + 1){ prev = cur; continue; }
+    ranges.push([rangeStart, prev]);
+    rangeStart = cur; prev = cur;
+  }
+
+  const pad = n => String(n).padStart(maxDigits, '0');
+  const rangeText = ranges.map(([a,b]) => a===b ? pad(a) : `${pad(a)}–${pad(b)}`).join(', ');
+
+  const card = document.createElement('div');
+  card.className = 'result-card';
+  card.innerHTML = `
+    <div class="r-line" style="color:var(--paper); font-weight:600; margin-bottom:6px;">মিসিং ক্রমিক নং (${missing.length}টি):</div>
+    <div class="r-line" style="font-family:'JetBrains Mono',monospace; line-height:1.9; word-break:break-word;">${escapeHtml(rangeText)}</div>
+  `;
+  missingResults.appendChild(card);
 }
 
 // ---------- Year search ----------

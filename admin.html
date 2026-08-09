@@ -183,7 +183,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, collection, doc, setDoc, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-import { FIREBASE_CONFIG, VOTERS_COLLECTION, normalizeDob } from "./voter-shared.js";
+import { FIREBASE_CONFIG, VOTERS_COLLECTION, normalizeDob } from "./shared.js";
 
 const firebaseApp = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(firebaseApp);
@@ -202,7 +202,8 @@ loginBtn.addEventListener('click', async ()=>{
   try{
     await signInWithEmailAndPassword(auth, loginEmail.value.trim(), loginPassword.value);
   }catch(err){
-    loginError.textContent = 'লগইন ব্যর্থ। ইমেইল/পাসওয়ার্ড চেক করুন।';
+    console.error(err);
+    loginError.textContent = 'লগইন ব্যর্থ: ' + (err.code || err.message || 'অজানা সমস্যা');
   }finally{
     loginBtn.disabled = false; loginBtn.textContent = 'লগইন করুন';
   }

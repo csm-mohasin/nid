@@ -5,27 +5,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Auto Crop Web Camera</title>
   <style>
+    :root{
+      --bg-0:#05060B; --bg-1:#0A0E1C;
+      --glass:rgba(255,255,255,0.045); --glass-brd:rgba(255,255,255,0.10);
+      --ink:#EAF1FF; --ink-dim:#8C95B8;
+      --violet:#8B6BFF; --violet-2:#5B3DFF;
+      --cyan:#2FE1FF; --pink:#FF5FA8;
+      --danger:#FF5D6C; --ok:#34E7A6;
+    }
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      -webkit-tap-highlight-color: transparent;
     }
 
     body {
-      font-family: Arial, sans-serif;
-      background: #121212;
-      color: #ffffff;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      color: var(--ink);
       display: flex;
       flex-direction: column;
       align-items: center;
       min-height: 100vh;
-      padding: 10px;
+      padding: 14px;
+      background:
+        radial-gradient(1100px 650px at 12% -8%, rgba(139,107,255,.20), transparent 60%),
+        radial-gradient(900px 600px at 112% 6%, rgba(47,225,255,.12), transparent 55%),
+        radial-gradient(800px 550px at 50% 118%, rgba(255,95,168,.10), transparent 58%),
+        var(--bg-0);
     }
+
+    @keyframes fadeUp{from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:translateY(0);}}
+    @keyframes scanSweep{0%{transform:translateY(-110%);} 100%{transform:translateY(210%);}}
+    @keyframes framePulse{0%,100%{box-shadow:0 0 0 9999px rgba(3,4,10,0.6), 0 0 0 0 rgba(139,107,255,.35);} 50%{box-shadow:0 0 0 9999px rgba(3,4,10,0.6), 0 0 24px 4px rgba(139,107,255,.28);}}
 
     h2 {
       font-size: 18px;
-      margin-bottom: 10px;
-      color: #ffffff;
+      margin-bottom: 12px;
+      background: linear-gradient(90deg, var(--violet-2), var(--cyan));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      animation: fadeUp .45s cubic-bezier(.2,.8,.2,1);
     }
 
     .camera-wrapper {
@@ -33,9 +52,11 @@
       width: 100%;
       max-width: 480px;
       background: #000;
-      border-radius: 8px;
+      border-radius: 18px;
       overflow: hidden;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      border: 1px solid var(--glass-brd);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.55);
+      animation: fadeUp .5s cubic-bezier(.2,.8,.2,1);
     }
 
     video {
@@ -51,24 +72,32 @@
       transform: translate(-50%, -50%);
       width: 90%;
       height: 40%;
-      border: 2px solid #ffffff;
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+      border: 2px solid var(--cyan);
+      border-radius: 8px;
       pointer-events: none;
       transition: width 0.05s ease, height 0.05s ease;
+      animation: framePulse 2.4s ease-in-out infinite;
+      overflow: hidden;
+    }
+    .crop-frame::after{
+      content:''; position:absolute; left:0; right:0; height:2px;
+      background: linear-gradient(90deg, transparent, var(--violet), transparent);
+      animation: scanSweep 2.1s linear infinite;
     }
 
     .frame-tag {
       position: absolute;
-      top: -24px;
+      top: -26px;
       left: 50%;
       transform: translateX(-50%);
-      background: #ffffff;
-      color: #000000;
+      background: linear-gradient(135deg, var(--violet), var(--violet-2));
+      color: #ffffff;
       font-size: 11px;
       font-weight: bold;
-      padding: 2px 8px;
-      border-radius: 4px;
+      padding: 3px 10px;
+      border-radius: 999px;
       white-space: nowrap;
+      box-shadow: 0 4px 14px rgba(91,61,255,.4);
     }
 
     .controls {
@@ -78,20 +107,25 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
+      animation: fadeUp .55s cubic-bezier(.2,.8,.2,1);
     }
 
     .slider-container {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: #1e1e1e;
+      background: var(--glass);
+      border: 1px solid var(--glass-brd);
       padding: 10px 15px;
-      border-radius: 8px;
+      border-radius: 12px;
       font-size: 14px;
+      transition: border-color .2s;
     }
+    .slider-container:focus-within{ border-color: var(--violet); }
 
     .slider-container input {
       width: 55%;
+      accent-color: var(--violet);
     }
 
     .btn-group {
@@ -105,51 +139,63 @@
       font-size: 15px;
       font-weight: bold;
       border: none;
-      border-radius: 8px;
+      border-radius: 12px;
       cursor: pointer;
+      transition: transform .15s, box-shadow .15s, opacity .15s;
     }
+    button:active{ transform: scale(.96); }
 
     .btn-switch {
-      background: #333333;
-      color: #ffffff;
+      background: var(--glass);
+      border: 1px solid var(--glass-brd);
+      color: var(--ink);
       flex: 1;
     }
 
     .btn-capture {
-      background: #ffffff;
-      color: #000000;
+      background: linear-gradient(135deg, var(--violet), var(--violet-2));
+      color: #ffffff;
       flex: 2;
+      box-shadow: 0 8px 24px rgba(91,61,255,.4);
     }
 
     .btn-capture:active {
-      opacity: 0.8;
+      opacity: 0.9;
     }
 
     .btn-reset {
-      background: #444444;
-      color: #ffffff;
+      background: var(--glass);
+      border: 1px solid var(--glass-brd);
+      color: var(--danger);
       flex: 1;
     }
 
     .counter-info {
       text-align: center;
       font-size: 13px;
-      color: #aaaaaa;
+      color: var(--ink-dim);
       margin-top: 4px;
+      font-family: 'JetBrains Mono', monospace;
     }
 
     .case-input {
       width: 100%;
       padding: 12px;
       font-size: 14px;
-      border-radius: 8px;
-      border: 1px solid #444444;
-      background: #1e1e1e;
-      color: #ffffff;
+      border-radius: 12px;
+      border: 1px solid var(--glass-brd);
+      background: var(--glass);
+      color: var(--ink);
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .case-input:focus{
+      outline: none;
+      border-color: var(--violet);
+      box-shadow: 0 0 0 3px rgba(139,107,255,.16);
     }
 
     .case-input::placeholder {
-      color: #888888;
+      color: var(--ink-dim);
     }
 
     canvas {
@@ -160,10 +206,10 @@
       margin-top: 18px;
       text-align: center;
       font-size: 11px;
-      color: rgba(255,255,255,0.35);
+      color: rgba(234,241,255,0.35);
     }
     .dev-credit a {
-      color: rgba(201,162,75,0.7);
+      color: rgba(139,107,255,0.7);
       text-decoration: none;
     }
   </style>
@@ -283,6 +329,15 @@
 
     captureBtn.addEventListener('click', () => {
       if (!video.videoWidth) return;
+
+      // ছবি তোলার সময় ছোট্ট flash অ্যানিমেশন — প্রতিটা ক্যাপচার ধাপে ভিজ্যুয়াল ফিডব্যাক
+      const wrapper = document.querySelector('.camera-wrapper');
+      wrapper.animate(
+        [{ boxShadow: '0 0 0 0 rgba(47,225,255,0)' , filter:'brightness(1)'},
+         { boxShadow: '0 0 40px 6px rgba(47,225,255,.55)', filter:'brightness(1.35)' },
+         { boxShadow: '0 0 0 0 rgba(47,225,255,0)', filter:'brightness(1)' }],
+        { duration: 320, easing: 'ease-out' }
+      );
 
       const videoRect = video.getBoundingClientRect();
       const frameRect = cropFrame.getBoundingClientRect();

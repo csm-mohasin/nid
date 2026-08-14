@@ -68,6 +68,13 @@
     padding:6px 12px; border-radius:999px; cursor:pointer; transition:.2s;}
   .signout-btn:active{transform:scale(.95); border-color:var(--danger); color:var(--danger);}
 
+  .sex-toggle{padding:12px 16px 0; display:flex; gap:8px; flex-shrink:0;}
+  .sex-btn{flex:1; padding:12px; border-radius:12px; border:1px solid var(--glass-brd);
+    background:var(--glass); color:var(--ink-dim); font-size:13.5px; font-weight:600; cursor:pointer; transition:.2s;}
+  .sex-btn:active{transform:scale(.96);}
+  .sex-btn#genderMaleBtn.active{background:linear-gradient(135deg,var(--cyan),#1FA8C4); color:#022026; border-color:transparent; font-weight:700; box-shadow:0 4px 16px rgba(47,225,255,.35);}
+  .sex-btn#genderFemaleBtn.active{background:linear-gradient(135deg,var(--pink),#C93E82); color:#2A0715; border-color:transparent; font-weight:700; box-shadow:0 4px 16px rgba(255,95,168,.35);}
+
   .tabs{display:flex; gap:6px; padding:10px 14px; background:rgba(8,10,20,0.45); flex-shrink:0; overflow-x:auto;}
   .tab-btn{flex:1; padding:10px 6px; border-radius:12px; border:1px solid var(--glass-brd); background:var(--glass);
     color:var(--ink-dim); font-size:12.5px; cursor:pointer; white-space:nowrap; transition:.2s;}
@@ -182,6 +189,11 @@
     <button class="signout-btn" id="signoutBtn">লগআউট</button>
   </div>
 
+  <div class="sex-toggle">
+    <button class="sex-btn active" id="genderMaleBtn" data-sex="male">পুরুষ সেকশন</button>
+    <button class="sex-btn" id="genderFemaleBtn" data-sex="female">নারী সেকশন</button>
+  </div>
+
   <div class="tabs">
     <button class="tab-btn active" data-tab="nameTab">নাম দিয়ে</button>
     <button class="tab-btn" data-tab="dashboardTab">ড্যাশবোর্ড</button>
@@ -294,6 +306,41 @@ signoutBtn.addEventListener('click', ()=> signOut(auth));
 
 let allVoters = [];
 let voterDataLoaded = false;
+let currentGender = 'male';
+
+// শুধু বর্তমানে সিলেক্ট করা সেকশনের (পুরুষ/নারী) ভোটাররা রিটার্ন করে —
+// পুরুষ আর নারীর সিরিয়াল নং একই রকম হতে পারে (যেমন দুজনেরই 0002), তাই সব
+// সার্চ/ড্যাশবোর্ড/মিসিং-চেক এই ফাংশন দিয়ে ফিল্টার করা ডেটার উপর কাজ করে।
+// পুরনো ডেটায় sex ফিল্ড না থাকলে সেটাকে 'male' ধরা হচ্ছে (আগের সব এন্ট্রি পুরুষদের)।
+function votersForGender(){
+  return allVoters.filter(v => (v.sex || 'male') === currentGender);
+}
+
+const genderMaleBtn = document.getElementById('genderMaleBtn');
+const genderFemaleBtn = document.getElementById('genderFemaleBtn');
+function setGender(g){
+  if(currentGender === g) return;
+  currentGender = g;
+  genderMaleBtn.classList.toggle('active', g === 'male');
+  genderFemaleBtn.classList.toggle('active', g === 'female');
+  refreshAllViews();
+}
+genderMaleBtn.addEventListener('click', ()=> setGender('male'));
+genderFemaleBtn.addEventListener('click', ()=> setGender('female'));
+
+// সেকশন বদলালে যে ট্যাবেই থাকো না কেন, সবগুলো ভিউ নতুন সেকশনের ডেটা দিয়ে
+// রিফ্রেশ হয় — যাতে ভুল সেকশনের পুরোনো রেজাল্ট চোখে না পড়ে
+function refreshAllViews(){
+  if(!voterDataLoaded) return;
+  runNameSearch();
+  runSerialSearch();
+  renderDashboard();
+  populateYearSelect();
+  document.getElementById('yearNameFilter').style.display = 'none';
+  document.getElementById('yearResults').innerHTML = '';
+  missingResults.innerHTML = '';
+  missingSummary.textContent = 'শুরু ক্রমিক নং দিয়ে চেক করুন';
+}
 
 onAuthStateChanged(auth, (user)=>{
   if(user){
@@ -365,7 +412,7 @@ function runNameSearch(){
   const q = nameSearchInput.value.trim();
   nameResults.innerHTML = '';
   if(!q){ return; }
-  const matches = allVoters.filter(v => (v.name||'').includes(q) || (v.nid_number||'').includes(q));
+  const matches = votersForGender().filter(v => (v.name||'').includes(q) || (v.nid_number||'').includes(q));
   if(matches.length === 0){
     nameResults.innerHTML = '<div class="empty-hint">কোনো মিল পাওয়া যায়নি</div>';
     return;
@@ -387,7 +434,7 @@ function runSerialSearch(){
   if(!qRaw) return;
   const q = bnToEnDigits(qRaw).replace(/\D/g,'');
   if(!q){ serialResults.innerHTML = '<div class="empty-hint">শুধু সংখ্যা লিখুন</div>'; return; }
-  const matches = allVoters.filter(v => (v.serial||'').replace(/\D/g,'').includes(q));
+  const matches = votersForGender().filter(v => (v.serial||'').replace(/\D/g,'').includes(q));
   if(matches.length === 0){
     serialResults.innerHTML = '<div class="empty-hint">কোনো মিল পাওয়া যায়নি</div>';
     return;
@@ -417,7 +464,7 @@ function renderDashboard(){
     return;
   }
   // ক্রমিক নং অনুযায়ী (1 → last) সাজানো হচ্ছে; যাদের সিরিয়াল নেই তারা শেষে
-  const sorted = [...allVoters].sort((a,b)=>{
+  const sorted = [...votersForGender()].sort((a,b)=>{
     const sa = serialNum(a), sb = serialNum(b);
     if(isNaN(sa) && isNaN(sb)) return 0;
     if(isNaN(sa)) return 1;
@@ -427,7 +474,8 @@ function renderDashboard(){
   const nums = sorted.map(serialNum).filter(n=>!isNaN(n));
   const lastSerial = nums.length ? Math.max(...nums) : 0;
 
-  dashboardSummary.textContent = `মোট আপলোড হয়েছে: ${allVoters.length} জন · সর্বশেষ ক্রমিক নং: ${lastSerial}`;
+  const genderLabel = currentGender === 'female' ? 'নারী' : 'পুরুষ';
+  dashboardSummary.textContent = `${genderLabel} সেকশন · মোট আপলোড হয়েছে: ${sorted.length} জন · সর্বশেষ ক্রমিক নং: ${lastSerial}`;
 
   dashboardResults.innerHTML = '';
   if(sorted.length === 0){
@@ -534,7 +582,7 @@ function runMissingSerialCheck(){
   // সব ভোটারের serial সংগ্রহ করে সংখ্যায় রূপান্তর (বাংলা->ইংরেজি, শুধু ডিজিট রেখে)
   const serialSet = new Set();
   let maxDigits = 1;
-  allVoters.forEach(v=>{
+  votersForGender().forEach(v=>{
     const raw = bnToEnDigits(v.serial || '').replace(/\D/g,'');
     if(raw){
       serialSet.add(parseInt(raw,10));
@@ -562,8 +610,9 @@ function runMissingSerialCheck(){
   }
   const totalRange = lastSerial - start + 1;
 
+  const missingGenderLabel = currentGender === 'female' ? 'নারী' : 'পুরুষ';
   missingSummary.textContent =
-    `সর্বশেষ ক্রমিক নং: ${lastSerial} · থাকার কথা: ${totalRange} · আপলোড হয়েছে: ${totalRange - missing.length} · মিসিং: ${missing.length}`;
+    `${missingGenderLabel} সেকশন · সর্বশেষ ক্রমিক নং: ${lastSerial} · থাকার কথা: ${totalRange} · আপলোড হয়েছে: ${totalRange - missing.length} · মিসিং: ${missing.length}`;
 
   if(missing.length === 0){
     missingResults.innerHTML = '<div class="empty-hint">কোনো সিরিয়াল মিসিং নেই — সবগুলো আপলোড হয়ে গেছে ✅</div>';
@@ -596,13 +645,17 @@ function runMissingSerialCheck(){
 // ---------- Year search ----------
 function populateYearSelect(){
   const years = new Set();
-  allVoters.forEach(v => { if(v.dob) years.add(v.dob.slice(0,4)); });
+  votersForGender().forEach(v => { if(v.dob) years.add(v.dob.slice(0,4)); });
   const sel = document.getElementById('yearSelect');
+  const prevValue = sel.value;
+  sel.innerHTML = '<option value="">জন্ম সাল বেছে নিন</option>';
   Array.from(years).sort((a,b)=>a-b).forEach(y=>{
     const opt = document.createElement('option');
     opt.value = y; opt.textContent = y;
     sel.appendChild(opt);
   });
+  // আগের সিলেকশন নতুন সেকশনেও থাকলে সেটাই রেখে দাও
+  if(Array.from(years).includes(prevValue)) sel.value = prevValue;
 }
 document.getElementById('yearSelect').addEventListener('change', runYearSearch);
 document.getElementById('yearNameFilter').addEventListener('input', runYearSearch);
@@ -614,7 +667,7 @@ function runYearSearch(){
   if(!year){ filterEl.style.display='none'; return; }
   filterEl.style.display='block';
   const nameQ = filterEl.value.trim();
-  let matches = allVoters.filter(v => (v.dob||'').startsWith(year));
+  let matches = votersForGender().filter(v => (v.dob||'').startsWith(year));
   if(nameQ) matches = matches.filter(v => (v.name||'').includes(nameQ));
   if(matches.length === 0){
     results.innerHTML = '<div class="empty-hint">কোনো মিল পাওয়া যায়নি</div>';

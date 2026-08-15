@@ -95,7 +95,7 @@ export function slugify(str){
 export function buildRepEmail(unionId, shortName, username){
   const u = slugify(username);
   const s = slugify(shortName || unionId);
-  return `${u}.${s}@reps.voterapp.local`;
+  return `${u}.${s}@mohasin.bro.bd`;
 }
 
 // র‍্যান্ডম পাসওয়ার্ড জেনারেট (নতুন প্রতিনিধি অ্যাকাউন্টের জন্য)

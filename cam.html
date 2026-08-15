@@ -205,12 +205,24 @@
     .dev-credit {
       margin-top: 18px;
       text-align: center;
-      font-size: 11px;
-      color: rgba(234,241,255,0.35);
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: .4px;
+      font-family: 'JetBrains Mono', monospace;
     }
+    .dev-credit span{ color: rgba(234,241,255,0.35); }
     .dev-credit a {
-      color: rgba(139,107,255,0.7);
       text-decoration: none;
+      font-weight: 800;
+      background: linear-gradient(90deg, var(--violet-2), var(--cyan), var(--pink), var(--violet-2));
+      background-size: 300% 100%;
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      animation: devCreditFade 6s ease-in-out infinite;
+    }
+    @keyframes devCreditFade{
+      0%{background-position:0% 50%;}
+      50%{background-position:100% 50%;}
+      100%{background-position:0% 50%;}
     }
   </style>
 </head>
@@ -252,7 +264,7 @@
 
   <canvas id="canvas"></canvas>
 
-  <div class="dev-credit">Developer: <a href="https://mohasin.bro.bd" target="_blank" rel="noopener">CSM Mohasin Alam</a></div>
+  <div class="dev-credit"><span>Developer:</span> <a href="https://mohasin.bro.bd" target="_blank" rel="noopener">CSM Mohasin Alam</a></div>
 
   <script>
     const video = document.getElementById('webcam');

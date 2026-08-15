@@ -51,6 +51,10 @@
   .login-form input{padding:13px 14px; border-radius:12px; background:var(--glass);
     border:1px solid var(--glass-brd); color:var(--ink); font-size:15px; transition:border-color .2s, box-shadow .2s;}
   .login-form input:focus{border-color:var(--violet); box-shadow:0 0 0 3px rgba(139,107,255,.18);}
+  .forgot-pass-btn{background:transparent; border:none; color:var(--cyan); font-size:12.5px;
+    text-decoration:underline; cursor:pointer; padding:2px; align-self:center; opacity:.85;}
+  .forgot-pass-btn:active{opacity:.6;}
+  .reset-msg{color:#7EE0A8; font-size:12.5px; min-height:14px; text-align:center;}
   .primary-btn{background:linear-gradient(135deg,var(--violet),var(--violet-2)); color:#fff; border:none; padding:13px 20px;
     border-radius:999px; font-size:15px; font-weight:600; cursor:pointer; transition:transform .15s, box-shadow .15s;
     box-shadow:0 6px 20px rgba(91,61,255,.35);}
@@ -170,9 +174,20 @@
     color:#fff; border:none; font-size:14px; font-weight:600; cursor:pointer; transition:.15s;}
   .popup-rescan-btn:active{transform:scale(.97);}
 
-  .dev-credit{position:absolute; left:0; right:0; bottom:4px; text-align:center; font-size:10px;
-    color:rgba(234,241,255,0.3); z-index:5; pointer-events:none;}
-  .dev-credit a{color:rgba(139,107,255,0.6); pointer-events:auto; text-decoration:none;}
+  /* ---------- Developer credit — বড়, স্মুথ কালার-ফেড অ্যানিমেশন ---------- */
+  .dev-credit{position:absolute; left:0; right:0; bottom:6px; text-align:center;
+    font-size:14px; font-weight:700; letter-spacing:.4px; font-family:'JetBrains Mono',monospace;
+    z-index:5; pointer-events:none;}
+  .dev-credit span{color:rgba(234,241,255,0.35);}
+  .dev-credit a{pointer-events:auto; text-decoration:none; font-weight:800;
+    background:linear-gradient(90deg,var(--violet-2),var(--cyan),var(--gold),var(--violet-2));
+    background-size:300% 100%; -webkit-background-clip:text; background-clip:text; color:transparent;
+    animation:devCreditFade 6s ease-in-out infinite;}
+  @keyframes devCreditFade{
+    0%{background-position:0% 50%;}
+    50%{background-position:100% 50%;}
+    100%{background-position:0% 50%;}
+  }
 
   /* ---------- Dashboard tab ---------- */
   .dash-edit-btn{width:100%; margin-top:10px; padding:9px; border-radius:10px; background:transparent;
@@ -200,7 +215,9 @@
       <input type="email" id="loginEmail" placeholder="ইমেইল" autocomplete="username">
       <input type="password" id="loginPassword" placeholder="পাসওয়ার্ড" autocomplete="current-password">
       <button class="primary-btn" id="loginBtn">লগইন করুন</button>
+      <button type="button" class="forgot-pass-btn" id="forgotPassBtn">পাসওয়ার্ড ভুলে গেছো?</button>
       <div class="error-text" id="loginError"></div>
+      <div class="reset-msg" id="resetMsg"></div>
     </div>
   </div>
 
@@ -294,7 +311,7 @@
 
   </div><!-- /appBody -->
 
-  <div class="dev-credit">Developer: <a href="https://mohasin.bro.bd" target="_blank" rel="noopener">CSM Mohasin Alam</a></div>
+  <div class="dev-credit"><span>Developer:</span> <a href="https://mohasin.bro.bd" target="_blank" rel="noopener">CSM Mohasin Alam</a></div>
 
 </div>
 
@@ -326,7 +343,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getFirestore, collection, getDocs, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import {
   FIREBASE_CONFIG, bnToEnDigits, normalizeDob, dobYear, displayDob,
   UNIONS_COLLECTION, WARDS_SUBCOLLECTION, REPS_COLLECTION,
@@ -366,6 +383,27 @@ loginBtn.addEventListener('click', async ()=>{
   }
 });
 signoutBtn.addEventListener('click', ()=> signOut(auth));
+
+const forgotPassBtn = document.getElementById('forgotPassBtn');
+const resetMsg = document.getElementById('resetMsg');
+forgotPassBtn.addEventListener('click', async ()=>{
+  loginError.textContent = ''; resetMsg.textContent = '';
+  const email = loginEmail.value.trim();
+  if(!email){
+    loginError.textContent = 'রিসেট লিংক পাঠাতে আগে ইমেইল বক্সে ইমেইল লিখো।';
+    return;
+  }
+  forgotPassBtn.disabled = true;
+  try{
+    await sendPasswordResetEmail(auth, email);
+    resetMsg.textContent = 'রিসেট লিংক পাঠানো হয়েছে — ইমেইল চেক করো (স্প্যাম ফোল্ডারও দেখো)।';
+  }catch(err){
+    console.error(err);
+    loginError.textContent = 'রিসেট ব্যর্থ: ' + (err.code || err.message || 'অজানা সমস্যা');
+  }finally{
+    forgotPassBtn.disabled = false;
+  }
+});
 
 let allVoters = [];
 let voterDataLoaded = false;

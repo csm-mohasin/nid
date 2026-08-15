@@ -68,6 +68,26 @@
     padding:6px 12px; border-radius:999px; cursor:pointer; transition:.2s;}
   .signout-btn:active{transform:scale(.95); border-color:var(--danger); color:var(--danger);}
 
+  .access-denied{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px; padding:32px; text-align:center; color:var(--ink-dim); font-size:14px;}
+  .access-denied h2{color:var(--ink); font-size:16px; margin:0;}
+
+  .scope-bar{padding:12px 16px 0; flex-shrink:0;}
+  .scope-card{background:var(--glass); border:1px solid var(--glass-brd); border-radius:14px; padding:14px;}
+  .scope-row{display:flex; gap:8px; margin-bottom:8px;}
+  .scope-row .fg{flex:1;}
+  .scope-label{display:block; font-size:10.5px; letter-spacing:0.05em; text-transform:uppercase;
+    color:var(--ink-dim); margin-bottom:4px; font-family:'JetBrains Mono',monospace;}
+  .scope-select{width:100%; padding:11px 12px; border-radius:10px; background:var(--glass);
+    border:1px solid var(--glass-brd); color:var(--ink); font-size:14px; font-family:'Noto Sans Bengali',sans-serif;}
+  .scope-load-btn{width:100%; padding:12px; border-radius:12px; background:linear-gradient(135deg,var(--violet),var(--violet-2));
+    color:#fff; border:none; font-size:14px; font-weight:600; cursor:pointer;}
+  .scope-load-btn:active{transform:scale(.98);}
+  .scope-current{padding:12px 16px 0; flex-shrink:0; font-size:12px; color:var(--ink-dim);
+    font-family:'JetBrains Mono',monospace; display:flex; align-items:center; justify-content:space-between; gap:8px;}
+  .scope-current .scope-switch-btn{background:transparent; border:1px solid var(--glass-brd); color:var(--violet-2);
+    font-size:11px; padding:5px 10px; border-radius:999px; cursor:pointer; flex-shrink:0;}
+
   .sex-toggle{padding:12px 16px 0; display:flex; gap:8px; flex-shrink:0;}
   .sex-btn{flex:1; padding:12px; border-radius:12px; border:1px solid var(--glass-brd);
     background:var(--glass); color:var(--ink-dim); font-size:13.5px; font-weight:600; cursor:pointer; transition:.2s;}
@@ -189,6 +209,34 @@
     <button class="signout-btn" id="signoutBtn">লগআউট</button>
   </div>
 
+  <div class="access-denied" id="accessDenied" style="display:none;">
+    <h2>প্রবেশাধিকার নেই</h2>
+    <p>এই অ্যাকাউন্টের জন্য কোনো ওয়ার্ড/অ্যাডমিন অনুমতি সেট করা নেই।<br>অ্যাডমিনের সাথে যোগাযোগ করো।</p>
+  </div>
+
+  <!-- শুধু super-admin-এর জন্য: ইউনিয়ন+ওয়ার্ড বেছে নেওয়ার বার -->
+  <div class="scope-bar" id="scopeBar" style="display:none;">
+    <div class="scope-card">
+      <div class="scope-row">
+        <div class="fg"><span class="scope-label">ইউনিয়ন</span>
+          <select class="scope-select" id="scopeUnionSelect"><option value="">বেছে নাও</option></select>
+        </div>
+        <div class="fg"><span class="scope-label">ওয়ার্ড</span>
+          <select class="scope-select" id="scopeWardSelect"><option value="">আগে ইউনিয়ন বেছে নাও</option></select>
+        </div>
+      </div>
+      <button class="scope-load-btn" id="scopeLoadBtn">এই ওয়ার্ড লোড করো</button>
+    </div>
+  </div>
+
+  <!-- বর্তমানে কোন ইউনিয়ন/ওয়ার্ড লোড আছে সেটা দেখায় -->
+  <div class="scope-current" id="scopeCurrent" style="display:none;">
+    <span id="scopeCurrentText">—</span>
+    <button class="scope-switch-btn" id="scopeSwitchBtn" style="display:none;">পাল্টাও</button>
+  </div>
+
+  <div id="appBody" style="display:none; flex:1; min-height:0; flex-direction:column; overflow:hidden;">
+
   <div class="sex-toggle">
     <button class="sex-btn active" id="genderMaleBtn" data-sex="male">পুরুষ সেকশন</button>
     <button class="sex-btn" id="genderFemaleBtn" data-sex="female">নারী সেকশন</button>
@@ -244,6 +292,8 @@
     <div id="missingResults"></div>
   </div>
 
+  </div><!-- /appBody -->
+
   <div class="dev-credit">Developer: <a href="https://mohasin.bro.bd" target="_blank" rel="noopener">CSM Mohasin Alam</a></div>
 
 </div>
@@ -275,9 +325,13 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-import { FIREBASE_CONFIG, VOTERS_COLLECTION, bnToEnDigits, normalizeDob, dobYear, displayDob } from "./shared.js";
+import {
+  FIREBASE_CONFIG, bnToEnDigits, normalizeDob, dobYear, displayDob,
+  UNIONS_COLLECTION, WARDS_SUBCOLLECTION, REPS_COLLECTION,
+  wardVotersPathParts, wardsPathParts
+} from "./shared.js";
 
 const firebaseApp = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(firebaseApp);
@@ -289,6 +343,15 @@ const loginPassword = document.getElementById('loginPassword');
 const loginBtn = document.getElementById('loginBtn');
 const loginError = document.getElementById('loginError');
 const signoutBtn = document.getElementById('signoutBtn');
+const accessDenied = document.getElementById('accessDenied');
+const scopeBar = document.getElementById('scopeBar');
+const scopeCurrent = document.getElementById('scopeCurrent');
+const scopeCurrentText = document.getElementById('scopeCurrentText');
+const scopeSwitchBtn = document.getElementById('scopeSwitchBtn');
+const scopeUnionSelect = document.getElementById('scopeUnionSelect');
+const scopeWardSelect = document.getElementById('scopeWardSelect');
+const scopeLoadBtn = document.getElementById('scopeLoadBtn');
+const appBody = document.getElementById('appBody');
 
 loginBtn.addEventListener('click', async ()=>{
   loginError.textContent = '';
@@ -307,6 +370,10 @@ signoutBtn.addEventListener('click', ()=> signOut(auth));
 let allVoters = [];
 let voterDataLoaded = false;
 let currentGender = 'male';
+let myRole = null;       // 'admin' | 'rep'
+let scopeUnionId = '';   // বর্তমানে লোড করা ওয়ার্ডের ইউনিয়ন আইডি
+let scopeWardId = '';    // বর্তমানে লোড করা ওয়ার্ড আইডি
+let orgCache = {};       // admin-এর জন্য: unionId -> { name, short_name, wards:[{id,name}] }
 
 // শুধু বর্তমানে সিলেক্ট করা সেকশনের (পুরুষ/নারী) ভোটাররা রিটার্ন করে —
 // পুরুষ আর নারীর সিরিয়াল নং একই রকম হতে পারে (যেমন দুজনেরই 0002), তাই সব
@@ -342,19 +409,127 @@ function refreshAllViews(){
   missingSummary.textContent = 'শুরু ক্রমিক নং দিয়ে চেক করুন';
 }
 
-onAuthStateChanged(auth, (user)=>{
-  if(user){
-    loginScreen.style.display = 'none';
-    if(!voterDataLoaded) loadAllVoters();
-  }else{
+// ---------- Login হওয়ার পর role নির্ধারণ ----------
+// rep হলে সরাসরি তার নিজের union_id/ward_id দিয়ে ডেটা লোড হয়ে যায়।
+// admin হলে উপরে ইউনিয়ন+ওয়ার্ড বেছে নিতে হয় (একাধিক ওয়ার্ড দেখতে পারে)।
+onAuthStateChanged(auth, async (user)=>{
+  resetScopeUI();
+  if(!user){
     loginScreen.style.display = 'flex';
+    return;
+  }
+  loginScreen.style.display = 'none';
+  try{
+    const repSnap = await getDoc(doc(db, REPS_COLLECTION, user.uid));
+    if(!repSnap.exists()){
+      accessDenied.style.display = 'flex';
+      return;
+    }
+    const rep = repSnap.data();
+    myRole = rep.role;
+    if(myRole === 'admin'){
+      await loadOrgCacheForAdmin();
+      scopeBar.style.display = 'block';
+    }else if(myRole === 'rep' && rep.union_id && rep.ward_id){
+      await enterScope(rep.union_id, rep.ward_id);
+    }else{
+      accessDenied.style.display = 'flex';
+    }
+  }catch(err){
+    console.error(err);
+    accessDenied.style.display = 'flex';
   }
 });
 
+function resetScopeUI(){
+  accessDenied.style.display = 'none';
+  scopeBar.style.display = 'none';
+  scopeCurrent.style.display = 'none';
+  appBody.style.display = 'none';
+  voterDataLoaded = false;
+  allVoters = [];
+}
+
+// ---------- admin-এর জন্য: সব ইউনিয়ন/ওয়ার্ড লিস্ট লোড করে সিলেক্ট বক্স সাজানো ----------
+async function loadOrgCacheForAdmin(){
+  orgCache = {};
+  const unionSnap = await getDocs(collection(db, UNIONS_COLLECTION));
+  for(const d of unionSnap.docs){ orgCache[d.id] = { ...d.data(), wards: [] }; }
+  await Promise.all(Object.keys(orgCache).map(async (unionId)=>{
+    const wardSnap = await getDocs(collection(db, ...wardsPathParts(unionId)));
+    orgCache[unionId].wards = wardSnap.docs.map(w => ({ id: w.id, ...w.data() }));
+  }));
+  scopeUnionSelect.innerHTML = '<option value="">বেছে নাও</option>';
+  Object.keys(orgCache).forEach(unionId=>{
+    const opt = document.createElement('option');
+    opt.value = unionId; opt.textContent = `${orgCache[unionId].name} (${unionId})`;
+    scopeUnionSelect.appendChild(opt);
+  });
+}
+scopeUnionSelect.addEventListener('change', ()=>{
+  const unionId = scopeUnionSelect.value;
+  scopeWardSelect.innerHTML = '';
+  if(!unionId || !orgCache[unionId]){
+    scopeWardSelect.innerHTML = '<option value="">আগে ইউনিয়ন বেছে নাও</option>';
+    return;
+  }
+  scopeWardSelect.innerHTML = '<option value="">বেছে নাও</option>';
+  orgCache[unionId].wards.forEach(w=>{
+    const opt = document.createElement('option');
+    opt.value = w.id; opt.textContent = `${w.name} (${w.id})`;
+    scopeWardSelect.appendChild(opt);
+  });
+});
+scopeLoadBtn.addEventListener('click', async ()=>{
+  const unionId = scopeUnionSelect.value, wardId = scopeWardSelect.value;
+  if(!unionId || !wardId) return;
+  await enterScope(unionId, wardId);
+});
+scopeSwitchBtn.addEventListener('click', ()=>{
+  appBody.style.display = 'none';
+  scopeCurrent.style.display = 'none';
+  scopeBar.style.display = 'block';
+  voterDataLoaded = false;
+  allVoters = [];
+});
+
+// ---------- নির্দিষ্ট ইউনিয়ন+ওয়ার্ডের ডেটা লোড করে অ্যাপ দেখানো ----------
+async function enterScope(unionId, wardId){
+  scopeUnionId = unionId; scopeWardId = wardId;
+  scopeBar.style.display = 'none';
+  scopeCurrent.style.display = 'flex';
+  scopeSwitchBtn.style.display = (myRole === 'admin') ? 'inline-block' : 'none';
+  scopeCurrentText.textContent = await resolveScopeLabel(unionId, wardId);
+  appBody.style.display = 'flex';
+  await loadAllVoters();
+}
+
+// ইউনিয়ন/ওয়ার্ডের নাম দেখানোর জন্য — admin হলে আগে থেকে লোড করা orgCache থেকে,
+// rep হলে সরাসরি নির্দিষ্ট ডকুমেন্ট দুটো fetch করে (পুরো লিস্ট rep-এর দরকার নেই)
+async function resolveScopeLabel(unionId, wardId){
+  const cached = orgCache[unionId];
+  if(cached){
+    const w = cached.wards.find(x=>x.id===wardId);
+    return `${cached.name} → ${w ? w.name : wardId}`;
+  }
+  try{
+    const [unionSnap, wardSnap] = await Promise.all([
+      getDoc(doc(db, UNIONS_COLLECTION, unionId)),
+      getDoc(doc(db, ...wardsPathParts(unionId), wardId))
+    ]);
+    const uName = unionSnap.exists() ? unionSnap.data().name : unionId;
+    const wName = wardSnap.exists() ? wardSnap.data().name : wardId;
+    return `${uName} → ${wName}`;
+  }catch(_){
+    return `${unionId} → ${wardId}`;
+  }
+}
+
 async function loadAllVoters(){
   const statusEl = document.getElementById('loadStatus');
+  statusEl.textContent = 'ডেটা লোড হচ্ছে...';
   try{
-    const snap = await getDocs(collection(db, VOTERS_COLLECTION));
+    const snap = await getDocs(collection(db, ...wardVotersPathParts(scopeUnionId, scopeWardId)));
     allVoters = [];
     snap.forEach(d => allVoters.push(d.data()));
     voterDataLoaded = true;
@@ -540,15 +715,18 @@ editSaveBtn.addEventListener('click', async ()=>{
       dob: normalizeDob(dobRaw) || dobRaw,
       address: document.getElementById('editAddress').value.trim(),
       sex: document.getElementById('editSex').value,
+      union_id: scopeUnionId,
+      ward_id: scopeWardId,
       updated_at: new Date().toISOString()
     };
 
     // admin.html-এর মতোই ডকুমেন্ট ID = NID number, তাই একই ID-তে লিখলে
     // ওভাররাইট হয়। NID number নিজেই বদলালে পুরনো ID-র ডকুমেন্ট মুছে
     // নতুন ID-তে লেখা হচ্ছে, যাতে এতিম/ডুপ্লিকেট ডকুমেন্ট না থাকে।
-    await setDoc(doc(db, VOTERS_COLLECTION, nidVal), updated, { merge:true });
+    const votersPath = wardVotersPathParts(scopeUnionId, scopeWardId);
+    await setDoc(doc(db, ...votersPath, nidVal), updated, { merge:true });
     if(nidVal !== editTargetOriginalNid){
-      await deleteDoc(doc(db, VOTERS_COLLECTION, editTargetOriginalNid));
+      await deleteDoc(doc(db, ...votersPath, editTargetOriginalNid));
     }
 
     const idx = allVoters.findIndex(x => x.nid_number === editTargetOriginalNid);

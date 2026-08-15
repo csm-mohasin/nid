@@ -42,7 +42,56 @@
   .brand .dot{width:7px; height:7px; border-radius:50%; background:var(--violet); animation:floatDot 2.2s ease-in-out infinite, ringPulse 2.2s ease-in-out infinite;}
   .counter{font-size:11px; font-family:'JetBrains Mono',monospace; color:var(--gold);}
 
-  .sex-toggle{padding:14px 18px 0; display:flex; gap:8px; flex-shrink:0;}
+  .tabs{display:flex; gap:6px; padding:10px 14px; background:rgba(8,10,20,0.45); flex-shrink:0; overflow-x:auto;}
+  .tab-btn{flex:1; padding:10px 6px; border-radius:12px; border:1px solid var(--glass-brd); background:var(--glass);
+    color:var(--ink-dim); font-size:12.5px; cursor:pointer; white-space:nowrap; transition:.2s;}
+  .tab-btn.active{background:linear-gradient(135deg,var(--violet),var(--violet-2)); color:#fff; border-color:transparent;
+    font-weight:600; box-shadow:0 4px 16px rgba(91,61,255,.4);}
+  .tab-btn:active{transform:scale(.96);}
+  .tab-panel{display:none; flex:1; overflow-y:auto; padding:14px 16px 24px;}
+  .tab-panel.active{display:flex; flex-direction:column; gap:14px; animation:fadeUp .35s cubic-bezier(.2,.8,.2,1);}
+
+  .access-denied{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px; padding:32px; text-align:center; color:var(--ink-dim); font-size:14px;}
+
+  .field-row{display:flex; gap:8px;}
+  .field-row .fg{flex:1;}
+  .field-label{display:block; font-size:10.5px; letter-spacing:0.05em; text-transform:uppercase;
+    color:var(--ink-dim); margin-bottom:4px; font-family:'JetBrains Mono',monospace;}
+  .field-input, .field-select{width:100%; padding:11px 12px; border-radius:10px; background:var(--glass);
+    border:1px solid var(--glass-brd); color:var(--ink); font-size:14px; transition:.2s;}
+  .field-input:focus, .field-select:focus{border-color:var(--violet);}
+  .field-select{font-family:'Noto Sans Bengali',sans-serif;}
+  .btn-small{padding:11px 14px; border-radius:10px; background:linear-gradient(135deg,var(--violet),var(--violet-2));
+    color:#fff; border:none; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; transition:.15s;}
+  .btn-small:active{transform:scale(.96);}
+  .btn-small:disabled{opacity:.4;}
+
+  .org-card{background:var(--glass); border:1px solid var(--glass-brd); border-radius:14px; padding:14px;}
+  .org-card-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+  .org-card-head .oc-title{font-size:14.5px; font-weight:700;}
+  .org-card-head .oc-sub{font-size:11.5px; color:var(--ink-dim); font-family:'JetBrains Mono',monospace;}
+  .ward-chip{display:inline-flex; align-items:center; gap:6px; background:rgba(139,107,255,.10);
+    border:1px solid rgba(139,107,255,.25); border-radius:999px; padding:5px 10px; font-size:12px; margin:3px 4px 0 0;}
+  .empty-hint{color:var(--ink-dim); font-size:13px; text-align:center; padding:16px 8px;}
+
+  .cred-box{background:rgba(52,231,166,0.08); border:1px solid rgba(52,231,166,.35); border-radius:14px; padding:14px;
+    animation:cardIn .35s cubic-bezier(.2,.8,.2,1) both;}
+  .cred-box .cred-title{font-size:13px; font-weight:700; color:var(--ok); margin-bottom:8px;}
+  .cred-row{display:flex; align-items:center; justify-content:space-between; gap:8px; background:rgba(0,0,0,.25);
+    border-radius:10px; padding:9px 12px; margin-bottom:6px; font-family:'JetBrains Mono',monospace; font-size:13px;}
+  .cred-row .cred-copy{background:none; border:none; color:var(--cyan); font-size:12px; cursor:pointer; flex-shrink:0;}
+  .cred-warn{font-size:11.5px; color:var(--gold); margin-top:6px; line-height:1.6;}
+
+  .rep-item{background:var(--glass); border:1px solid var(--glass-brd); border-left:3px solid var(--violet);
+    border-radius:12px; padding:12px; margin-bottom:8px;}
+  .rep-item .ri-name{font-size:14px; font-weight:600; margin-bottom:2px;}
+  .rep-item .ri-line{font-size:12px; color:var(--ink-dim); margin-bottom:1px;}
+  .rep-item .ri-actions{display:flex; justify-content:flex-end; margin-top:6px;}
+  .rep-del-btn{background:none; border:1px solid rgba(255,93,109,.35); color:#FF8A8A; font-size:11.5px;
+    padding:5px 10px; border-radius:8px; cursor:pointer;}
+
+  .sex-toggle{padding:0; display:flex; gap:8px; flex-shrink:0;}
   .sex-btn{flex:1; padding:12px; border-radius:12px; border:1px solid var(--glass-brd);
     background:var(--glass); color:var(--ink-dim); font-size:13.5px; cursor:pointer; transition:.2s;}
   .sex-btn:active{transform:scale(.96);}
@@ -160,35 +209,113 @@
     </div>
   </div>
 
-  <div class="sex-toggle">
-    <button class="sex-btn active" id="sexMaleBtn" data-sex="male">পুরুষ সেকশন</button>
-    <button class="sex-btn" id="sexFemaleBtn" data-sex="female">নারী সেকশন</button>
+  <div class="access-denied" id="accessDenied" style="display:none;">
+    <h2 style="color:var(--ink); font-size:16px; margin:0;">প্রবেশাধিকার নেই</h2>
+    <p>এই অ্যাকাউন্টের জন্য কোনো অ্যাডমিন অনুমতি সেট করা নেই।<br>Firestore-এ <code>representatives/&lt;uid&gt;</code> ডকুমেন্টে <code>role: "admin"</code> সেট আছে কিনা দেখো।</p>
+    <button class="signout-btn" id="accessDeniedSignout">লগআউট</button>
   </div>
 
-  <div class="home-body">
-    <div class="info-card">
-      <h2>যেভাবে কাজ করবে</h2>
-      <ol>
-        <li>ভোটার লিস্টের পেজের ছবি তুলো (ফোনের ক্যামেরা/Gemini অ্যাপ দিয়ে)।</li>
-        <li>Gemini-কে নিচের prompt + ছবি দাও, ও একটা <b>JSON</b> রিটার্ন করবে।</li>
-        <li>সেই পুরো JSON কপি করে নিচের বক্সে পেস্ট করো, "পার্স করো" চাপো।</li>
-        <li>এন্ট্রিগুলো এডিট স্ক্রিনে আসবে — ভুল থাকলে ঠিক করে <b>Save</b> করো।</li>
-      </ol>
+  <div class="tabs" id="mainTabs" style="display:none;">
+    <button class="tab-btn active" data-tab="dataTab">ভোটার ডেটা</button>
+    <button class="tab-btn" data-tab="orgTab">ইউনিয়ন/ওয়ার্ড</button>
+    <button class="tab-btn" data-tab="repsTab">প্রতিনিধি</button>
+  </div>
+
+  <div class="tab-panel active" id="dataTab">
+    <div class="org-card">
+      <div class="field-row">
+        <div class="fg" style="flex:1;"><label class="field-label">ইউনিয়ন</label>
+          <select class="field-select" id="dataUnionSelect"><option value="">বেছে নাও</option></select>
+        </div>
+        <div class="fg" style="flex:1;"><label class="field-label">ওয়ার্ড</label>
+          <select class="field-select" id="dataWardSelect"><option value="">আগে ইউনিয়ন বেছে নাও</option></select>
+        </div>
+      </div>
+      <div class="cred-warn" id="dataScopeWarn">উপরে ইউনিয়ন ও ওয়ার্ড বেছে না নেওয়া পর্যন্ত ডেটা সেভ করা যাবে না।</div>
     </div>
 
-    <div class="info-card">
-      <h2>Gemini prompt (কপি করে ব্যবহার করো)</h2>
-      <button class="raw-toggle" id="promptToggle">prompt দেখাও / লুকাও</button>
-      <div class="raw-text" id="promptText" style="display:none; max-height:none;"></div>
-      <button class="btn-secondary" id="copyPromptBtn" style="margin-top:8px; width:100%;">prompt কপি করো</button>
+    <div class="sex-toggle">
+      <button class="sex-btn active" id="sexMaleBtn" data-sex="male">পুরুষ সেকশন</button>
+      <button class="sex-btn" id="sexFemaleBtn" data-sex="female">নারী সেকশন</button>
     </div>
 
-    <div class="info-card">
-      <h2>এখানে Gemini-এর JSON পেস্ট করো</h2>
-      <textarea class="paste-textarea" id="jsonInput" placeholder='[ { "serial": "0004", "name": "...", ... } ]'></textarea>
-      <div class="parse-error" id="parseError"></div>
-      <button class="primary-btn" id="parseBtn" style="margin-top:10px;">পার্স করো ও এডিট স্ক্রিনে যাও</button>
+    <div class="home-body" style="padding:0;">
+      <div class="info-card">
+        <h2>যেভাবে কাজ করবে</h2>
+        <ol>
+          <li>উপরে ইউনিয়ন ও ওয়ার্ড বেছে নাও।</li>
+          <li>ভোটার লিস্টের পেজের ছবি তুলো (ফোনের ক্যামেরা/Gemini অ্যাপ দিয়ে)।</li>
+          <li>Gemini-কে নিচের prompt + ছবি দাও, ও একটা <b>JSON</b> রিটার্ন করবে।</li>
+          <li>সেই পুরো JSON কপি করে নিচের বক্সে পেস্ট করো, "পার্স করো" চাপো।</li>
+          <li>এন্ট্রিগুলো এডিট স্ক্রিনে আসবে — ভুল থাকলে ঠিক করে <b>Save</b> করো।</li>
+        </ol>
+      </div>
+
+      <div class="info-card">
+        <h2>Gemini prompt (কপি করে ব্যবহার করো)</h2>
+        <button class="raw-toggle" id="promptToggle">prompt দেখাও / লুকাও</button>
+        <div class="raw-text" id="promptText" style="display:none; max-height:none;"></div>
+        <button class="btn-secondary" id="copyPromptBtn" style="margin-top:8px; width:100%;">prompt কপি করো</button>
+      </div>
+
+      <div class="info-card">
+        <h2>এখানে Gemini-এর JSON পেস্ট করো</h2>
+        <textarea class="paste-textarea" id="jsonInput" placeholder='[ { "serial": "0004", "name": "...", ... } ]'></textarea>
+        <div class="parse-error" id="parseError"></div>
+        <button class="primary-btn" id="parseBtn" style="margin-top:10px;">পার্স করো ও এডিট স্ক্রিনে যাও</button>
+      </div>
     </div>
+  </div>
+
+  <div class="tab-panel" id="orgTab">
+    <div class="org-card">
+      <div class="org-card-head"><span class="oc-title">নতুন ইউনিয়ন</span></div>
+      <div class="field-row" style="margin-bottom:8px;">
+        <div class="fg" style="flex:1;"><label class="field-label">ইউনিয়ন আইডি (যেমন 01)</label>
+          <input class="field-input" id="newUnionId" placeholder="01" inputmode="numeric"></div>
+      </div>
+      <div class="field-row" style="margin-bottom:8px;">
+        <div class="fg" style="flex:2;"><label class="field-label">নাম</label>
+          <input class="field-input" id="newUnionName" placeholder="আড়পাড়া"></div>
+        <div class="fg" style="flex:1;"><label class="field-label">শর্ট নাম (English)</label>
+          <input class="field-input" id="newUnionShort" placeholder="ar"></div>
+      </div>
+      <div class="parse-error" id="orgUnionError"></div>
+      <button class="btn-small" id="addUnionBtn" style="width:100%; margin-top:4px;">ইউনিয়ন যোগ করো</button>
+    </div>
+
+    <div class="status-line" id="orgListStatus" style="font-size:12px; color:var(--ink-dim); font-family:'JetBrains Mono',monospace;">লোড হচ্ছে...</div>
+    <div id="unionsList"></div>
+  </div>
+
+  <div class="tab-panel" id="repsTab">
+    <div class="org-card">
+      <div class="org-card-head"><span class="oc-title">নতুন প্রতিনিধি</span></div>
+      <div class="field-row" style="margin-bottom:8px;">
+        <div class="fg" style="flex:1;"><label class="field-label">ইউনিয়ন</label>
+          <select class="field-select" id="repUnionSelect"><option value="">বেছে নাও</option></select>
+        </div>
+        <div class="fg" style="flex:1;"><label class="field-label">ওয়ার্ড</label>
+          <select class="field-select" id="repWardSelect"><option value="">আগে ইউনিয়ন বেছে নাও</option></select>
+        </div>
+      </div>
+      <div class="field-row" style="margin-bottom:8px;">
+        <div class="fg" style="flex:1;"><label class="field-label">নাম (বাংলা)</label>
+          <input class="field-input" id="repName" placeholder="নাজমুল ইসলাম"></div>
+      </div>
+      <div class="field-row" style="margin-bottom:8px;">
+        <div class="fg" style="flex:1;"><label class="field-label">ইউজারনেম (English, শুধু লগইনের জন্য)</label>
+          <input class="field-input" id="repUsername" placeholder="nazmul"></div>
+      </div>
+      <div class="cred-warn" id="repEmailPreview">ইমেইল: —</div>
+      <div class="parse-error" id="repFormError"></div>
+      <button class="btn-small" id="createRepBtn" style="width:100%; margin-top:8px;">প্রতিনিধি তৈরি করো</button>
+    </div>
+
+    <div id="repCredResult"></div>
+
+    <div class="status-line" id="repsListStatus" style="font-size:12px; color:var(--ink-dim); font-family:'JetBrains Mono',monospace;">লোড হচ্ছে...</div>
+    <div id="repsList"></div>
   </div>
 
   <div class="review-panel" id="reviewPanel">
@@ -216,10 +343,14 @@
 </div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore, collection, doc, setDoc, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-import { FIREBASE_CONFIG, VOTERS_COLLECTION, normalizeDob } from "./shared.js";
+import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+import { getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import {
+  FIREBASE_CONFIG, VOTERS_COLLECTION, normalizeDob,
+  UNIONS_COLLECTION, WARDS_SUBCOLLECTION, REPS_COLLECTION,
+  wardVotersPathParts, wardsPathParts, slugify, buildRepEmail, generateRandomPassword
+} from "./shared.js";
 
 const firebaseApp = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(firebaseApp);
@@ -231,6 +362,9 @@ const loginPassword = document.getElementById('loginPassword');
 const loginBtn = document.getElementById('loginBtn');
 const loginError = document.getElementById('loginError');
 const signoutBtn = document.getElementById('signoutBtn');
+const accessDenied = document.getElementById('accessDenied');
+const accessDeniedSignout = document.getElementById('accessDeniedSignout');
+const mainTabs = document.getElementById('mainTabs');
 
 loginBtn.addEventListener('click', async ()=>{
   loginError.textContent = '';
@@ -245,9 +379,45 @@ loginBtn.addEventListener('click', async ()=>{
   }
 });
 signoutBtn.addEventListener('click', ()=> signOut(auth));
+accessDeniedSignout.addEventListener('click', ()=> signOut(auth));
 
-onAuthStateChanged(auth, (user)=>{
-  loginScreen.style.display = user ? 'none' : 'flex';
+// ---------- Role check: শুধু role: "admin" ওয়ালা representatives ডকুমেন্ট থাকা
+// অ্যাকাউন্টই admin.html ব্যবহার করতে পারবে ----------
+onAuthStateChanged(auth, async (user)=>{
+  if(!user){
+    loginScreen.style.display = 'flex';
+    accessDenied.style.display = 'none';
+    mainTabs.style.display = 'none';
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    return;
+  }
+  loginScreen.style.display = 'none';
+  try{
+    const repSnap = await getDoc(doc(db, REPS_COLLECTION, user.uid));
+    if(repSnap.exists() && repSnap.data().role === 'admin'){
+      accessDenied.style.display = 'none';
+      mainTabs.style.display = 'flex';
+      document.getElementById('dataTab').classList.add('active');
+      initAdminData();
+    }else{
+      accessDenied.style.display = 'flex';
+      mainTabs.style.display = 'none';
+    }
+  }catch(err){
+    console.error(err);
+    accessDenied.style.display = 'flex';
+    mainTabs.style.display = 'none';
+  }
+});
+
+// ---------- Tabs ----------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
 });
 
 const sessionCounter = document.getElementById('sessionCounter');
@@ -273,6 +443,12 @@ const toast = document.getElementById('toast');
 let currentSex = 'male';
 let sessionSaved = 0;
 let records = [];
+let currentUnionId = '';
+let currentWardId = '';
+
+const dataUnionSelect = document.getElementById('dataUnionSelect');
+const dataWardSelect = document.getElementById('dataWardSelect');
+const dataScopeWarn = document.getElementById('dataScopeWarn');
 
 function showToast(msg){
   toast.textContent = msg;
@@ -445,8 +621,12 @@ addRecordBtn.addEventListener('click', ()=>{
   renderRecords();
 });
 
-// ---------- Save to Firebase ----------
+// ---------- Save to Firebase (নির্বাচিত ইউনিয়ন/ওয়ার্ডের voters সাব-কালেকশনে) ----------
 saveBtn.addEventListener('click', async ()=>{
+  if(!currentUnionId || !currentWardId){
+    showToast('আগে ইউনিয়ন ও ওয়ার্ড বেছে নাও');
+    return;
+  }
   const valid = records.filter(r => r.name.trim() && r.nid_number.trim().length >= 8);
   if(valid.length === 0){
     showToast('অন্তত নাম ও NID নম্বর থাকা এন্ট্রি লাগবে');
@@ -455,6 +635,7 @@ saveBtn.addEventListener('click', async ()=>{
   saveBtn.disabled = true;
   saveBtn.textContent = 'সংরক্ষণ হচ্ছে...';
   try{
+    const votersPath = wardVotersPathParts(currentUnionId, currentWardId);
     for(const rec of valid){
       const data = {
         serial: rec.serial.trim(),
@@ -466,11 +647,13 @@ saveBtn.addEventListener('click', async ()=>{
         dob: normalizeDob(rec.dob_raw) || rec.dob_raw.trim(),
         address: rec.address.trim(),
         sex: rec.sex,
+        union_id: currentUnionId,
+        ward_id: currentWardId,
         updated_at: new Date().toISOString()
       };
       // doc ID = NID number -> re-scanning/correcting the same person just
       // overwrites instead of creating duplicates
-      await setDoc(doc(db, VOTERS_COLLECTION, rec.nid_number.trim()), data, { merge:true });
+      await setDoc(doc(db, ...votersPath, rec.nid_number.trim()), data, { merge:true });
     }
     sessionSaved += valid.length;
     sessionCounter.textContent = `এই সেশনে: ${sessionSaved}`;
@@ -479,8 +662,8 @@ saveBtn.addEventListener('click', async ()=>{
     jsonInput.value = '';
 
     try{
-      const snap = await getCountFromServer(collection(db, VOTERS_COLLECTION));
-      sessionCounter.textContent = `এই সেশনে: ${sessionSaved} · মোট: ${snap.data().count}`;
+      const snap = await getCountFromServer(collection(db, ...votersPath));
+      sessionCounter.textContent = `এই সেশনে: ${sessionSaved} · এই ওয়ার্ডে মোট: ${snap.data().count}`;
     }catch(_){}
   }catch(err){
     console.error(err);
@@ -490,6 +673,324 @@ saveBtn.addEventListener('click', async ()=>{
     saveBtn.textContent = 'Firebase-এ সংরক্ষণ করুন';
   }
 });
+
+// ================================================================
+// ইউনিয়ন / ওয়ার্ড / প্রতিনিধি ম্যানেজমেন্ট
+// ================================================================
+const orgUnionError = document.getElementById('orgUnionError');
+const orgListStatus = document.getElementById('orgListStatus');
+const unionsList = document.getElementById('unionsList');
+const repUnionSelect = document.getElementById('repUnionSelect');
+const repWardSelect = document.getElementById('repWardSelect');
+const repName = document.getElementById('repName');
+const repUsername = document.getElementById('repUsername');
+const repEmailPreview = document.getElementById('repEmailPreview');
+const repFormError = document.getElementById('repFormError');
+const createRepBtn = document.getElementById('createRepBtn');
+const repCredResult = document.getElementById('repCredResult');
+const repsListStatus = document.getElementById('repsListStatus');
+const repsList = document.getElementById('repsList');
+
+// unionId -> { name, short_name, wards: [{id,name}] }
+let orgCache = {};
+
+async function initAdminData(){
+  await loadUnions();
+}
+
+async function loadUnions(){
+  orgListStatus.textContent = 'লোড হচ্ছে...';
+  try{
+    const snap = await getDocs(collection(db, UNIONS_COLLECTION));
+    orgCache = {};
+    for(const d of snap.docs){
+      orgCache[d.id] = { ...d.data(), wards: [] };
+    }
+    // প্রতিটা ইউনিয়নের ওয়ার্ড লোড করা হচ্ছে
+    await Promise.all(Object.keys(orgCache).map(async (unionId)=>{
+      const wardSnap = await getDocs(collection(db, ...wardsPathParts(unionId)));
+      orgCache[unionId].wards = wardSnap.docs.map(w => ({ id: w.id, ...w.data() }));
+    }));
+    orgListStatus.textContent = `মোট ইউনিয়ন: ${Object.keys(orgCache).length}`;
+    renderUnionsList();
+    populateUnionSelects();
+  }catch(err){
+    console.error(err);
+    orgListStatus.textContent = 'লোড ব্যর্থ: ' + err.message;
+  }
+}
+
+function renderUnionsList(){
+  unionsList.innerHTML = '';
+  const ids = Object.keys(orgCache);
+  if(ids.length === 0){
+    unionsList.innerHTML = '<div class="empty-hint">এখনো কোনো ইউনিয়ন যোগ করা হয়নি</div>';
+    return;
+  }
+  ids.forEach(unionId=>{
+    const u = orgCache[unionId];
+    const card = document.createElement('div');
+    card.className = 'org-card';
+    card.innerHTML = `
+      <div class="org-card-head">
+        <span class="oc-title">${escapeHtml(u.name||'')}</span>
+        <span class="oc-sub">ID: ${escapeHtml(unionId)} · ${escapeHtml(u.short_name||'')}</span>
+      </div>
+      <div class="wards-wrap">
+        ${u.wards.length ? u.wards.map(w=>`<span class="ward-chip">${escapeHtml(w.name||w.id)} <span style="color:var(--ink-dim)">(${escapeHtml(w.id)})</span></span>`).join('') : '<span class="empty-hint" style="padding:4px 0;">কোনো ওয়ার্ড নেই</span>'}
+      </div>
+      <div class="field-row" style="margin-top:10px;">
+        <div class="fg" style="flex:1;"><input class="field-input" placeholder="ওয়ার্ড আইডি (যেমন 03)" data-new-ward-id="${unionId}"></div>
+        <div class="fg" style="flex:2;"><input class="field-input" placeholder="ওয়ার্ডের নাম" data-new-ward-name="${unionId}"></div>
+        <button class="btn-small" data-add-ward="${unionId}">যোগ করো</button>
+      </div>
+    `;
+    unionsList.appendChild(card);
+  });
+
+  unionsList.querySelectorAll('[data-add-ward]').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      const unionId = btn.dataset.addWard;
+      const idInput = unionsList.querySelector(`[data-new-ward-id="${unionId}"]`);
+      const nameInput = unionsList.querySelector(`[data-new-ward-name="${unionId}"]`);
+      const wardId = idInput.value.trim();
+      const wardName = nameInput.value.trim();
+      if(!wardId || !wardName){ showToast('ওয়ার্ড আইডি ও নাম দুটোই লাগবে'); return; }
+      btn.disabled = true;
+      try{
+        await setDoc(doc(db, ...wardsPathParts(unionId), wardId), { name: wardName });
+        showToast('ওয়ার্ড যোগ হয়েছে ✓');
+        await loadUnions();
+      }catch(err){
+        console.error(err);
+        showToast('ব্যর্থ: ' + err.message);
+      }finally{
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+document.getElementById('addUnionBtn').addEventListener('click', async ()=>{
+  orgUnionError.textContent = '';
+  const id = document.getElementById('newUnionId').value.trim();
+  const name = document.getElementById('newUnionName').value.trim();
+  const short = document.getElementById('newUnionShort').value.trim();
+  if(!id || !name || !short){
+    orgUnionError.textContent = 'আইডি, নাম, শর্ট নাম — তিনটাই দিতে হবে';
+    return;
+  }
+  if(!/^[a-zA-Z0-9-]+$/.test(id)){
+    orgUnionError.textContent = 'আইডি-তে শুধু ইংরেজি সংখ্যা/অক্ষর ব্যবহার করো (যেমন 01)';
+    return;
+  }
+  const shortSlug = slugify(short);
+  if(!shortSlug){
+    orgUnionError.textContent = 'শর্ট নাম ইংরেজি অক্ষরে দাও (যেমন ar)';
+    return;
+  }
+  try{
+    await setDoc(doc(db, UNIONS_COLLECTION, id), { name, short_name: shortSlug });
+    showToast('ইউনিয়ন যোগ হয়েছে ✓');
+    document.getElementById('newUnionId').value = '';
+    document.getElementById('newUnionName').value = '';
+    document.getElementById('newUnionShort').value = '';
+    await loadUnions();
+  }catch(err){
+    console.error(err);
+    orgUnionError.textContent = 'ব্যর্থ: ' + err.message;
+  }
+});
+
+// ---------- dataTab-এর ইউনিয়ন/ওয়ার্ড সিলেক্ট ----------
+function populateUnionSelects(){
+  [dataUnionSelect, repUnionSelect].forEach(sel=>{
+    const prev = sel.value;
+    sel.innerHTML = '<option value="">বেছে নাও</option>';
+    Object.keys(orgCache).forEach(unionId=>{
+      const opt = document.createElement('option');
+      opt.value = unionId;
+      opt.textContent = `${orgCache[unionId].name} (${unionId})`;
+      sel.appendChild(opt);
+    });
+    if(orgCache[prev]) sel.value = prev;
+  });
+  updateWardSelect(dataUnionSelect, dataWardSelect);
+  updateWardSelect(repUnionSelect, repWardSelect);
+}
+
+function updateWardSelect(unionSel, wardSel){
+  const unionId = unionSel.value;
+  wardSel.innerHTML = '';
+  if(!unionId || !orgCache[unionId]){
+    wardSel.innerHTML = '<option value="">আগে ইউনিয়ন বেছে নাও</option>';
+    return;
+  }
+  wardSel.innerHTML = '<option value="">বেছে নাও</option>';
+  orgCache[unionId].wards.forEach(w=>{
+    const opt = document.createElement('option');
+    opt.value = w.id;
+    opt.textContent = `${w.name} (${w.id})`;
+    wardSel.appendChild(opt);
+  });
+}
+
+dataUnionSelect.addEventListener('change', ()=>{
+  updateWardSelect(dataUnionSelect, dataWardSelect);
+  currentUnionId = ''; currentWardId = '';
+  dataScopeWarn.textContent = 'উপরে ইউনিয়ন ও ওয়ার্ড বেছে না নেওয়া পর্যন্ত ডেটা সেভ করা যাবে না।';
+});
+dataWardSelect.addEventListener('change', ()=>{
+  currentUnionId = dataUnionSelect.value;
+  currentWardId = dataWardSelect.value;
+  if(currentUnionId && currentWardId){
+    const u = orgCache[currentUnionId];
+    const w = u.wards.find(x=>x.id===currentWardId);
+    dataScopeWarn.textContent = `সিলেক্টেড: ${u.name} → ${w ? w.name : currentWardId} — এখন সেভ করা ডেটা এখানেই যাবে`;
+  }else{
+    dataScopeWarn.textContent = 'উপরে ইউনিয়ন ও ওয়ার্ড বেছে না নেওয়া পর্যন্ত ডেটা সেভ করা যাবে না।';
+  }
+});
+
+// ---------- প্রতিনিধি ফর্ম ----------
+repUnionSelect.addEventListener('change', ()=>{
+  updateWardSelect(repUnionSelect, repWardSelect);
+  updateRepEmailPreview();
+});
+repWardSelect.addEventListener('change', updateRepEmailPreview);
+repUsername.addEventListener('input', updateRepEmailPreview);
+
+function updateRepEmailPreview(){
+  const unionId = repUnionSelect.value;
+  if(!unionId || !orgCache[unionId] || !repUsername.value.trim()){
+    repEmailPreview.textContent = 'ইমেইল: —';
+    return;
+  }
+  const email = buildRepEmail(unionId, orgCache[unionId].short_name, repUsername.value.trim());
+  repEmailPreview.textContent = 'ইমেইল: ' + email;
+}
+
+// createUserWithEmailAndPassword সরাসরি মূল auth instance-এ চালালে admin নিজেই
+// লগআউট হয়ে নতুন ইউজার হিসেবে লগইন হয়ে যাবে — তাই আলাদা "secondary" Firebase
+// app instance দিয়ে অ্যাকাউন্ট বানানো হচ্ছে, যাতে admin-এর সেশন অক্ষত থাকে
+async function createRepAuthAccount(email, password){
+  const secondaryApp = initializeApp(FIREBASE_CONFIG, 'rep-create-' + Date.now());
+  const secondaryAuth = getAuth(secondaryApp);
+  try{
+    const cred = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    const uid = cred.user.uid;
+    await signOut(secondaryAuth);
+    return uid;
+  }finally{
+    await deleteApp(secondaryApp);
+  }
+}
+
+createRepBtn.addEventListener('click', async ()=>{
+  repFormError.textContent = '';
+  const unionId = repUnionSelect.value;
+  const wardId = repWardSelect.value;
+  const nameVal = repName.value.trim();
+  const usernameVal = repUsername.value.trim();
+  if(!unionId || !wardId || !nameVal || !usernameVal){
+    repFormError.textContent = 'ইউনিয়ন, ওয়ার্ড, নাম, ইউজারনেম — সবগুলো দিতে হবে';
+    return;
+  }
+  const email = buildRepEmail(unionId, orgCache[unionId].short_name, usernameVal);
+  const password = generateRandomPassword(10);
+
+  createRepBtn.disabled = true;
+  createRepBtn.textContent = 'তৈরি হচ্ছে...';
+  try{
+    const uid = await createRepAuthAccount(email, password);
+    await setDoc(doc(db, REPS_COLLECTION, uid), {
+      role: 'rep',
+      union_id: unionId,
+      ward_id: wardId,
+      name: nameVal,
+      username: usernameVal,
+      email,
+      created_at: new Date().toISOString()
+    });
+    showRepCredentials(nameVal, email, password);
+    repName.value = ''; repUsername.value = '';
+    updateRepEmailPreview();
+    showToast('প্রতিনিধি তৈরি হয়েছে ✓');
+    await loadReps();
+  }catch(err){
+    console.error(err);
+    repFormError.textContent = 'ব্যর্থ: ' + (err.code || err.message);
+  }finally{
+    createRepBtn.disabled = false;
+    createRepBtn.textContent = 'প্রতিনিধি তৈরি করো';
+  }
+});
+
+function showRepCredentials(name, email, password){
+  const box = document.createElement('div');
+  box.className = 'cred-box';
+  box.innerHTML = `
+    <div class="cred-title">${escapeHtml(name)}-এর লগইন তথ্য (একবারই দেখানো হচ্ছে, কপি করে রাখো)</div>
+    <div class="cred-row"><span>${escapeHtml(email)}</span><button class="cred-copy" data-copy="${escapeHtml(email)}">কপি</button></div>
+    <div class="cred-row"><span>${escapeHtml(password)}</span><button class="cred-copy" data-copy="${escapeHtml(password)}">কপি</button></div>
+    <div class="cred-warn">এই পাসওয়ার্ড আর কোথাও দেখা যাবে না — এখনই প্রতিনিধিকে পাঠিয়ে দাও।</div>
+  `;
+  box.querySelectorAll('.cred-copy').forEach(btn=>{
+    btn.addEventListener('click', async ()=>{
+      try{ await navigator.clipboard.writeText(btn.dataset.copy); showToast('কপি হয়েছে ✓'); }
+      catch(_){ showToast('কপি ব্যর্থ — ম্যানুয়ালি সিলেক্ট করো'); }
+    });
+  });
+  repCredResult.innerHTML = '';
+  repCredResult.appendChild(box);
+}
+
+async function loadReps(){
+  repsListStatus.textContent = 'লোড হচ্ছে...';
+  try{
+    const snap = await getDocs(collection(db, REPS_COLLECTION));
+    repsList.innerHTML = '';
+    const reps = snap.docs.filter(d => d.data().role !== 'admin');
+    repsListStatus.textContent = `মোট প্রতিনিধি: ${reps.length}`;
+    if(reps.length === 0){
+      repsList.innerHTML = '<div class="empty-hint">এখনো কোনো প্রতিনিধি তৈরি হয়নি</div>';
+      return;
+    }
+    reps.forEach(d=>{
+      const r = d.data();
+      const u = orgCache[r.union_id];
+      const w = u ? u.wards.find(x=>x.id===r.ward_id) : null;
+      const item = document.createElement('div');
+      item.className = 'rep-item';
+      item.innerHTML = `
+        <div class="ri-name">${escapeHtml(r.name||'')}</div>
+        <div class="ri-line">${escapeHtml(r.email||'')}</div>
+        <div class="ri-line">${escapeHtml(u ? u.name : r.union_id)} → ${escapeHtml(w ? w.name : r.ward_id)}</div>
+        <div class="ri-actions"><button class="rep-del-btn" data-uid="${d.id}">অ্যাক্সেস বাতিল করো</button></div>
+      `;
+      repsList.appendChild(item);
+    });
+    repsList.querySelectorAll('.rep-del-btn').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        if(!confirm('এই প্রতিনিধির অ্যাক্সেস বাতিল করতে চাও? (লগইন অ্যাকাউন্ট থেকে যাবে কিন্তু আর কোনো ডেটা দেখতে/এডিট করতে পারবে না)')) return;
+        try{
+          await deleteDoc(doc(db, REPS_COLLECTION, btn.dataset.uid));
+          showToast('অ্যাক্সেস বাতিল হয়েছে ✓');
+          loadReps();
+        }catch(err){
+          console.error(err);
+          showToast('ব্যর্থ: ' + err.message);
+        }
+      });
+    });
+  }catch(err){
+    console.error(err);
+    repsListStatus.textContent = 'লোড ব্যর্থ: ' + err.message;
+  }
+}
+
+// প্রতিনিধি ট্যাবে ঢোকার সময় লিস্ট লোড করা হচ্ছে
+document.querySelector('[data-tab="repsTab"]').addEventListener('click', loadReps);
 </script>
 </body>
 </html>
